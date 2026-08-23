@@ -124,6 +124,20 @@ class _CompletedTasksScreenState extends State<CompletedTasksScreen> {
     return {for (final d in snap.docs) d.id: Machine.fromMap(d.id, d.data())};
   }
 
+  Widget _monthlyTaskList({required DateTime start, required DateTime end}) {
+    return _PaginatedMonthlyTasks(
+      start: start,
+      end: end,
+      typeCode: (o) => _type(o).split(' ').first,
+      typeDetail: _typeDetail,
+      formatDate: _formatDate,
+      duration: _duration,
+      users: _users,
+      helpers: _helpers,
+      machines: _machines,
+    );
+  }
+
   Widget _taskList({required DateTime start, required DateTime end}) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
@@ -219,9 +233,176 @@ class _CompletedTasksScreenState extends State<CompletedTasksScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          _taskList(start: monthStart, end: monthEnd),
+          _monthlyTaskList(start: monthStart, end: monthEnd),
         ],
       ),
+    );
+  }
+}
+
+// Loads a month's completed tasks a page at a time instead of one
+// unbounded live listener — a busy month can have thousands of entries,
+// and pulling them all into memory at once gets slow and wasteful as
+// history grows. This trades away live auto-updates for the monthly
+// list (a completed, historical record doesn't need to be live the way
+// an in-progress task does) in exchange for predictable, bounded loads.
+class _PaginatedMonthlyTasks extends StatefulWidget {
+  final DateTime start;
+  final DateTime end;
+  final String Function(WorkOrder) typeCode;
+  final String Function(WorkOrder) typeDetail;
+  final String Function(DateTime?) formatDate;
+  final String Function(int?) duration;
+  final Future<List<AppUser>> Function() users;
+  final Future<List<Helper>> Function() helpers;
+  final Future<Map<String, Machine>> Function() machines;
+
+  const _PaginatedMonthlyTasks({
+    required this.start,
+    required this.end,
+    required this.typeCode,
+    required this.typeDetail,
+    required this.formatDate,
+    required this.duration,
+    required this.users,
+    required this.helpers,
+    required this.machines,
+  });
+
+  @override
+  State<_PaginatedMonthlyTasks> createState() => _PaginatedMonthlyTasksState();
+}
+
+class _PaginatedMonthlyTasksState extends State<_PaginatedMonthlyTasks> {
+  static const _pageSize = 50;
+
+  final List<WorkOrder> _orders = [];
+  DocumentSnapshot<Map<String, dynamic>>? _lastDoc;
+  bool _isLoading = false;
+  bool _hasMore = true;
+  Map<String, AppUser> _users = {};
+  Map<String, Helper> _helpers = {};
+  Map<String, Machine> _machines = {};
+  bool _peopleLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPeople();
+    _loadNextPage();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PaginatedMonthlyTasks oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.start != widget.start || oldWidget.end != widget.end) {
+      // Month changed (user tapped the arrows) — reset and reload.
+      setState(() {
+        _orders.clear();
+        _lastDoc = null;
+        _hasMore = true;
+      });
+      _loadNextPage();
+    }
+  }
+
+  Future<void> _loadPeople() async {
+    final results = await Future.wait([widget.users(), widget.helpers(), widget.machines()]);
+    if (!mounted) return;
+    setState(() {
+      _users = {for (final u in results[0] as List<AppUser>) u.uid: u};
+      _helpers = {for (final h in results[1] as List<Helper>) h.uid: h};
+      _machines = results[2] as Map<String, Machine>;
+      _peopleLoaded = true;
+    });
+  }
+
+  Future<void> _loadNextPage() async {
+    if (_isLoading || !_hasMore) return;
+    setState(() => _isLoading = true);
+
+    var query = FirebaseFirestore.instance
+        .collection('work_orders')
+        .where('status', isEqualTo: 'completed')
+        .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(widget.start))
+        .where('completedAt', isLessThan: Timestamp.fromDate(widget.end))
+        .orderBy('completedAt', descending: true)
+        .limit(_pageSize);
+
+    if (_lastDoc != null) {
+      query = query.startAfterDocument(_lastDoc!);
+    }
+
+    try {
+      final snap = await query.get();
+      if (!mounted) return;
+      setState(() {
+        _orders.addAll(snap.docs.map((d) => WorkOrder.fromMap(d.id, d.data())));
+        _lastDoc = snap.docs.isNotEmpty ? snap.docs.last : _lastDoc;
+        _hasMore = snap.docs.length == _pageSize;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load more tasks: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_peopleLoaded || (_orders.isEmpty && _isLoading)) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_orders.isEmpty) {
+      return const Card(
+        child: Padding(padding: EdgeInsets.all(18), child: Text('No completed tasks in this period.')),
+      );
+    }
+
+    return Column(
+      children: [
+        ..._orders.map((order) {
+          final machine = _machines[order.machineId];
+          final techNames = order.assignedTechnicianIds.map((id) => _users[id]?.name).whereType<String>().toList();
+          final helperNames = order.helperIds.map((id) => _helpers[id]?.name).whereType<String>().toList();
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ExpansionTile(
+              leading: CircleAvatar(child: Text(widget.typeCode(order))),
+              title: Text(machine?.equipmentName ?? order.machineId, maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: Text([
+                if (widget.typeDetail(order).isNotEmpty) widget.typeDetail(order),
+                widget.formatDate(order.completedAt),
+                widget.duration(order.durationSeconds),
+              ].join(' · ')),
+              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              children: [
+                if (techNames.isNotEmpty) ListTile(dense: true, leading: const Icon(Icons.engineering_outlined), title: Text('JO: ${techNames.join(', ')}')),
+                if (helperNames.isNotEmpty) ListTile(dense: true, leading: const Icon(Icons.handyman_outlined), title: Text('CF: ${helperNames.join(', ')}')),
+                if (machine?.equipmentId.isNotEmpty == true) ListTile(dense: true, leading: const Icon(Icons.badge_outlined), title: Text('Equipment: ${machine!.equipmentId}')),
+                if (order.description.isNotEmpty) ListTile(dense: true, leading: const Icon(Icons.notes_outlined), title: Text('Start remarks: ${order.description}')),
+                if (order.completionRemarks.isNotEmpty) ListTile(dense: true, leading: const Icon(Icons.check_circle_outline), title: Text('Completion remarks: ${order.completionRemarks}')),
+              ],
+            ),
+          );
+        }),
+        if (_hasMore)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: _isLoading
+                  ? const CircularProgressIndicator()
+                  : OutlinedButton.icon(
+                      onPressed: _loadNextPage,
+                      icon: const Icon(Icons.expand_more),
+                      label: const Text('Load more'),
+                    ),
+            ),
+          ),
+      ],
     );
   }
 }
