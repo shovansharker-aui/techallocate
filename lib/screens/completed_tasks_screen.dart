@@ -128,7 +128,7 @@ class _CompletedTasksScreenState extends State<CompletedTasksScreen> {
     return _PaginatedMonthlyTasks(
       start: start,
       end: end,
-      typeCode: (o) => _type(o).split(' ').first,
+      typeCode: (o) => taskTypeCode(o.type),
       typeDetail: _typeDetail,
       formatDate: _formatDate,
       duration: _duration,
