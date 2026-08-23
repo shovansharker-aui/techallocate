@@ -7,6 +7,7 @@ import '../models/work_order.dart';
 import '../widgets_root_back_scope.dart';
 import '../utils/task_type.dart';
 import 'assign_helper_task_screen.dart';
+import 'my_cf_assignments_screen.dart';
 import '../utils/app_colors.dart';
 
 class TechnicianScreen extends StatelessWidget {
@@ -107,6 +108,16 @@ class _TechnicianHome extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             enabled: !onLeave,
             onTap: onLeave ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AssignHelperTaskScreen(uid: uid))),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.playlist_add_check)),
+            title: const Text('My CF Assignments', style: TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: const Text('Close out CF tasks you assigned.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MyCfAssignmentsScreen(uid: uid))),
           ),
         ),
         const SizedBox(height: 12),

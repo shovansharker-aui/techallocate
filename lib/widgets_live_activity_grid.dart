@@ -7,10 +7,16 @@ import 'models/machine.dart';
 import 'models/work_order.dart';
 import 'models/app_user.dart';
 import 'utils/task_type.dart';
+import 'utils/task_completion.dart';
 import 'utils/app_colors.dart';
 
 class LiveActivityGrid extends StatefulWidget {
-  const LiveActivityGrid({super.key});
+  /// When set, only shows tasks of this type (e.g. 'preventive'). Used by
+  /// the "Task Running" summary card so tapping "PM - 4" shows just those
+  /// 4 tasks, reusing this widget's existing machine/technician lookups
+  /// instead of duplicating that fetch logic elsewhere.
+  final String? filterType;
+  const LiveActivityGrid({super.key, this.filterType});
 
   @override
   State<LiveActivityGrid> createState() => _LiveActivityGridState();
@@ -65,7 +71,10 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                     final techs = {for (final d in (techSnapshot.data?.docs ?? [])) d.id: AppUser.fromMap(d.id, d.data())};
                     final helpers = {for (final d in (helperSnapshot.data?.docs ?? [])) d.id: Helper.fromMap(d.id, d.data())};
                     final machines = {for (final d in (machineSnapshot.data?.docs ?? [])) d.id: Machine.fromMap(d.id, d.data())};
-                    final orders = (orderSnapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data())).toList();
+                    final orders = (orderSnapshot.data?.docs ?? [])
+                        .map((d) => WorkOrder.fromMap(d.id, d.data()))
+                        .where((o) => widget.filterType == null || o.type == widget.filterType)
+                        .toList();
 
                     // One tile per task, not per person.
                     orders.sort((a, b) {
@@ -125,6 +134,22 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                         const Icon(Icons.timer_outlined, size: 13, color: AppColors.muted),
                                         const SizedBox(width: 4),
                                         Text(_duration(order.startedAt), style: const TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w600)),
+                                        const Spacer(),
+                                        TextButton.icon(
+                                          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 28), visualDensity: VisualDensity.compact),
+                                          onPressed: () async {
+                                            final time = await pickCompletionTime(context, startedAt: order.startedAt);
+                                            if (time == null) return;
+                                            await completeWorkOrder(
+                                              orderId: order.id,
+                                              technicianIds: order.assignedTechnicianIds,
+                                              helperIds: order.helperIds,
+                                              completedAt: time,
+                                            );
+                                          },
+                                          icon: const Icon(Icons.check_circle_outline, size: 15),
+                                          label: const Text('Complete', style: TextStyle(fontSize: 12)),
+                                        ),
                                       ],
                                     ),
                                   ],

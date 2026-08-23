@@ -64,10 +64,10 @@ class AdminMonitoringPanel extends StatelessWidget {
                       onTap: () => _showAvailablePeople(context, availableTechList, availableHelperList),
                     );
                     final task = _summaryCard('Task Running', Icons.work_history_outlined, [
-                      _SummaryRow('PM', '$pmCount'),
-                      _SummaryRow('BM', '$bmCount'),
-                      _SummaryRow('CL', '$clCount'),
-                      _SummaryRow('AD', '$adCount'),
+                      _SummaryRow('PM', '$pmCount', onTap: pmCount == 0 ? null : () => _showTasksOfType(context, 'preventive', 'Preventive tasks')),
+                      _SummaryRow('BM', '$bmCount', onTap: bmCount == 0 ? null : () => _showTasksOfType(context, 'breakdown', 'Breakdown tasks')),
+                      _SummaryRow('CL', '$clCount', onTap: clCount == 0 ? null : () => _showTasksOfType(context, 'calibration', 'Calibration tasks')),
+                      _SummaryRow('AD', '$adCount', onTap: adCount == 0 ? null : () => _showTasksOfType(context, 'adjustment', 'Adjustment tasks')),
                     ]);
                     if (!sideBySide) {
                       return Column(children: [jo, const SizedBox(height: 12), task]);
@@ -115,20 +115,63 @@ class AdminMonitoringPanel extends StatelessWidget {
               if (onTap != null) const Icon(Icons.touch_app_outlined, size: 16, color: AppColors.muted),
             ]),
             const SizedBox(height: 10),
-            ...rows.map((row) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(children: [
-                Text(row.label, style: const TextStyle(fontSize: 14, color: AppColors.muted, fontWeight: FontWeight.w600)),
-                const SizedBox(width: 8),
-                Text('- ${row.value}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-              ]),
-            )),
+            ...rows.map((row) {
+              final content = Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(children: [
+                  Text(row.label, style: const TextStyle(fontSize: 14, color: AppColors.muted, fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 8),
+                  Text('- ${row.value}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  if (row.onTap != null) ...[
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right, size: 16, color: AppColors.muted),
+                  ],
+                ]),
+              );
+              if (row.onTap == null) return content;
+              return InkWell(borderRadius: BorderRadius.circular(6), onTap: row.onTap, child: content);
+            }),
           ],
         ),
       ),
     );
     if (onTap == null) return card;
     return InkWell(borderRadius: BorderRadius.circular(20), onTap: onTap, child: card);
+  }
+
+  Future<void> _showTasksOfType(BuildContext context, String type, String title) {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black38,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480, maxHeight: 560),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.work_history_outlined, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold))),
+                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+                ]),
+                const Divider(height: 1),
+                const SizedBox(height: 10),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: LiveActivityGrid(filterType: type),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _showAvailablePeople(BuildContext context, List<AppUser> jos, List<Helper> cfs) {
@@ -163,14 +206,12 @@ class AdminMonitoringPanel extends StatelessWidget {
                         if (jos.isEmpty)
                           const Padding(padding: EdgeInsets.only(bottom: 12), child: Text('None available'))
                         else
-                          ...jos.asMap().entries.map((entry) => ListTile(
+                          ...jos.map((jo) => ListTile(
                             dense: true,
                             contentPadding: EdgeInsets.zero,
-                            leading: const CircleAvatar(radius: 16, child: Icon(Icons.person_outline, size: 16)),
-                            // Names are intentionally withheld here — only an anonymized
-                            // label and duty status are shown for Junior Officers.
-                            title: Text('Junior Officer ${entry.key + 1}'),
-                            subtitle: Text(entry.value.dutyStatus == 'night' ? 'Night duty' : 'Day duty'),
+                            leading: CircleAvatar(radius: 16, child: Text(jo.name.isEmpty ? '?' : jo.name[0].toUpperCase())),
+                            title: Text(jo.name),
+                            subtitle: Text(jo.dutyStatus == 'night' ? 'Night duty' : 'Day duty'),
                           )),
                         const SizedBox(height: 12),
                         Text('CF (${cfs.length})', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.muted)),
@@ -200,5 +241,6 @@ class AdminMonitoringPanel extends StatelessWidget {
 class _SummaryRow {
   final String label;
   final String value;
-  const _SummaryRow(this.label, this.value);
+  final VoidCallback? onTap;
+  const _SummaryRow(this.label, this.value, {this.onTap});
 }
