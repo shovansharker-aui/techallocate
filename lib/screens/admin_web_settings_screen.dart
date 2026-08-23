@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'add_employee_screen.dart';
 import 'machines_screen.dart';
 import 'add_helper_screen.dart';
+import '../services/theme_service.dart';
 
 class AdminWebSettingsScreen extends StatelessWidget {
   const AdminWebSettingsScreen({super.key});
@@ -83,6 +84,37 @@ class AdminWebSettingsScreen extends StatelessWidget {
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _open(context, const MachinesScreen()),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Appearance',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 10),
+              ListenableBuilder(
+                listenable: themeService,
+                builder: (context, _) => Card(
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    leading: const CircleAvatar(child: Icon(Icons.brightness_6_outlined)),
+                    title: const Text('Theme', style: TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(switch (themeService.mode) {
+                      ThemeMode.light => 'Light',
+                      ThemeMode.dark => 'Dark',
+                      ThemeMode.system => 'Match device setting',
+                    }),
+                    trailing: DropdownButton<ThemeMode>(
+                      value: themeService.mode,
+                      underline: const SizedBox.shrink(),
+                      items: const [
+                        DropdownMenuItem(value: ThemeMode.system, child: Text('System')),
+                        DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
+                        DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
+                      ],
+                      onChanged: (value) { if (value != null) themeService.setMode(value); },
+                    ),
+                  ),
                 ),
               ),
             ],

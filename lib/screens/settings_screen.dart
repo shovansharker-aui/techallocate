@@ -5,6 +5,7 @@ import 'add_employee_screen.dart';
 import 'machines_screen.dart';
 import 'add_helper_screen.dart';
 import '../utils/app_colors.dart';
+import '../services/theme_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -63,6 +64,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MachinesScreen())),
           )),
+          const SizedBox(height: 24),
+          const Text('Appearance', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          ListenableBuilder(
+            listenable: themeService,
+            builder: (context, _) => Card(child: ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.brightness_6_outlined)),
+              title: const Text('Theme'),
+              subtitle: Text(switch (themeService.mode) {
+                ThemeMode.light => 'Light',
+                ThemeMode.dark => 'Dark',
+                ThemeMode.system => 'Match device setting',
+              }),
+              trailing: DropdownButton<ThemeMode>(
+                value: themeService.mode,
+                underline: const SizedBox.shrink(),
+                items: const [
+                  DropdownMenuItem(value: ThemeMode.system, child: Text('System')),
+                  DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
+                  DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
+                ],
+                onChanged: (value) { if (value != null) themeService.setMode(value); },
+              ),
+            )),
+          ),
           const SizedBox(height: 24),
           const Text('Android Communication', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
