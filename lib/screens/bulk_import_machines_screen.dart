@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:csv/csv.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 
@@ -44,20 +44,17 @@ class _BulkImportMachinesScreenState extends State<BulkImportMachinesScreen> {
   String? _resultMessage;
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['csv'],
-      withData: true,
-    );
-    if (result == null || result.files.single.bytes == null) return;
+    const csvType = XTypeGroup(label: 'CSV', extensions: ['csv']);
+    final file = await openFile(acceptedTypeGroups: [csvType]);
+    if (file == null) return;
 
-    final bytes = result.files.single.bytes!;
+    final bytes = await file.readAsBytes();
     final content = String.fromCharCodes(bytes);
     final table = const CsvToListConverter(shouldParseNumbers: false).convert(content, eol: '\n');
 
     if (table.isEmpty) {
       setState(() {
-        _fileName = result.files.single.name;
+        _fileName = file.name;
         _rows = [];
         _resultMessage = 'That file appears to be empty.';
       });
@@ -72,7 +69,7 @@ class _BulkImportMachinesScreenState extends State<BulkImportMachinesScreen> {
 
     if (idCol == -1 || nameCol == -1) {
       setState(() {
-        _fileName = result.files.single.name;
+        _fileName = file.name;
         _rows = [];
         _resultMessage = 'Could not find "Equipment ID" and "Equipment Name" columns in the header row.';
       });
@@ -116,7 +113,7 @@ class _BulkImportMachinesScreenState extends State<BulkImportMachinesScreen> {
     }
 
     setState(() {
-      _fileName = result.files.single.name;
+      _fileName = file.name;
       _rows = parsed;
       _resultMessage = null;
     });
