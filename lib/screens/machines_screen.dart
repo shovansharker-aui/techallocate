@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/machine.dart';
 import '../utils/app_colors.dart';
+import 'bulk_import_machines_screen.dart';
 
 class MachinesScreen extends StatefulWidget {
   const MachinesScreen({super.key});
@@ -31,7 +32,18 @@ class _MachinesScreenState extends State<MachinesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Machines')),
+      appBar: AppBar(
+        title: const Text('Machines'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.upload_file),
+            tooltip: 'Bulk import from CSV',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const BulkImportMachinesScreen()),
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showMachineForm(context),
         icon: const Icon(Icons.add),
