@@ -73,12 +73,6 @@ class UserSessionGate extends StatelessWidget {
               onLogout: () => _logout(context),
             );
           case 'technician':
-            if (kIsWeb) {
-              return _ErrorScreen(
-                message: 'Junior Officer access is available in the mobile app. Web access is for administrators.',
-                onLogout: () => _logout(context),
-              );
-            }
             return TechnicianScreen(
               user: user,
               onLogout: () => _logout(context),
