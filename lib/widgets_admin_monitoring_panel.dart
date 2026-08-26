@@ -40,6 +40,9 @@ class AdminMonitoringPanel extends StatelessWidget {
                 final bmCount = countType('breakdown');
                 final clCount = countType('calibration');
                 final adCount = countType('adjustment');
+                final coCount = countType('changeover');
+                final trCount = countType('trial');
+                final otCount = countType('others');
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   AndroidWidgetService.update(
                     jo: availableTech,
@@ -68,6 +71,9 @@ class AdminMonitoringPanel extends StatelessWidget {
                       _SummaryRow('BM', '$bmCount', onTap: bmCount == 0 ? null : () => _showTasksOfType(context, 'breakdown', 'Breakdown tasks')),
                       _SummaryRow('CL', '$clCount', onTap: clCount == 0 ? null : () => _showTasksOfType(context, 'calibration', 'Calibration tasks')),
                       _SummaryRow('AD', '$adCount', onTap: adCount == 0 ? null : () => _showTasksOfType(context, 'adjustment', 'Adjustment tasks')),
+                      _SummaryRow('CO', '$coCount', onTap: coCount == 0 ? null : () => _showTasksOfType(context, 'changeover', 'Changeover tasks')),
+                      _SummaryRow('TR', '$trCount', onTap: trCount == 0 ? null : () => _showTasksOfType(context, 'trial', 'Trial tasks')),
+                      _SummaryRow('OT', '$otCount', onTap: otCount == 0 ? null : () => _showTasksOfType(context, 'others', 'Other tasks')),
                     ]);
                     if (!sideBySide) {
                       return Column(children: [jo, const SizedBox(height: 12), task]);

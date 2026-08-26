@@ -233,6 +233,7 @@ class _StartTaskPageState extends State<_StartTaskPage> {
     setState(() => _errorText = null);
     if (_selectedMachineId == null) return setState(() => _errorText = 'Please select a machine.');
     if (_type == 'preventive' && _preventiveTypes.isEmpty) return setState(() => _errorText = 'Select at least one preventive maintenance type.');
+    if (_type == 'others' && _remarksController.text.trim().isEmpty) return setState(() => _errorText = 'Please describe what this task is.');
 
     setState(() => _isSaving = true);
     final firestore = FirebaseFirestore.instance;
@@ -289,7 +290,7 @@ class _StartTaskPageState extends State<_StartTaskPage> {
         const Text('Maintenance Type', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 8, children: [
-          _typeChip('preventive', taskTypeCodeAndName('preventive')), _typeChip('breakdown', taskTypeCodeAndName('breakdown')), _typeChip('calibration', taskTypeCodeAndName('calibration')), _typeChip('adjustment', taskTypeCodeAndName('adjustment')),
+          for (final t in allTaskTypes) _typeChip(t, taskTypeCodeAndName(t)),
         ]),
         if (_type == 'preventive') ...[
           const SizedBox(height: 14),
@@ -338,9 +339,19 @@ class _StartTaskPageState extends State<_StartTaskPage> {
           ]);
         }),
         const SizedBox(height: 18),
-        const Text('Starting remarks (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
+        Text(
+          _type == 'others' ? 'What is this task? (required)' : 'Starting remarks (optional)',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 6),
-        TextField(controller: _remarksController, maxLines: 3, decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Optional issue/background information')), 
+        TextField(
+          controller: _remarksController,
+          maxLines: 3,
+          decoration: InputDecoration(
+            border: const OutlineInputBorder(),
+            hintText: _type == 'others' ? 'Describe the task, e.g. "Cleaning storage room"' : 'Optional issue/background information',
+          ),
+        ),
         const SizedBox(height: 18),
         if (_errorText != null) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(_errorText!, style: const TextStyle(color: AppColors.danger))),
         SizedBox(height: 50, child: FilledButton(onPressed: _isSaving ? null : _startTask, child: _isSaving ? const CircularProgressIndicator(strokeWidth: 2) : const Text('Start Task'))),
