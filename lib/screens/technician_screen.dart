@@ -175,15 +175,15 @@ class _StartTaskPageState extends State<_StartTaskPage> {
   List<Machine> _filterMachines(List<Machine> machines, String query) {
     final search = query.trim().toLowerCase();
     if (search.isEmpty) return const [];
-    final matches = machines.where((m) => m.equipmentName.toLowerCase().contains(search) || m.equipmentId.toLowerCase().contains(search)).toList();
+    final matches = machines.where((m) => m.displayName.toLowerCase().contains(search) || m.equipmentName.toLowerCase().contains(search) || m.equipmentId.toLowerCase().contains(search)).toList();
     matches.sort((a, b) {
       int score(Machine m) {
-        final n = m.equipmentName.toLowerCase();
+        final n = m.displayName.toLowerCase();
         final id = m.equipmentId.toLowerCase();
         return (n == search || id == search) ? 0 : (n.startsWith(search) || id.startsWith(search)) ? 1 : 2;
       }
       final c = score(a).compareTo(score(b));
-      return c == 0 ? a.equipmentName.toLowerCase().compareTo(b.equipmentName.toLowerCase()) : c;
+      return c == 0 ? a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()) : c;
     });
     return matches.take(5).toList();
   }
@@ -192,7 +192,7 @@ class _StartTaskPageState extends State<_StartTaskPage> {
     setState(() {
       _selectedMachine = machine;
       _selectedMachineId = machine.id;
-      _machineSearchController.text = machine.equipmentName;
+      _machineSearchController.text = machine.displayName;
       _machineSearchController.selection = TextSelection.fromPosition(TextPosition(offset: _machineSearchController.text.length));
       _showSuggestions = false;
       _errorText = null;
@@ -282,8 +282,8 @@ class _StartTaskPageState extends State<_StartTaskPage> {
               onTap: () => setState(() => _showSuggestions = _machineSearchController.text.trim().isNotEmpty),
               decoration: InputDecoration(labelText: 'Search machine', hintText: 'Machine name or equipment ID', prefixIcon: const Icon(Icons.search), suffixIcon: _selectedMachine == null ? null : IconButton(onPressed: () => setState(() { _selectedMachine = null; _selectedMachineId = null; _machineSearchController.clear(); }), icon: const Icon(Icons.clear)), border: const OutlineInputBorder()),
             ),
-            if (_showSuggestions && suggestions.isNotEmpty) Card(child: Column(children: suggestions.map((m) => ListTile(title: Text(m.equipmentName), subtitle: Text(m.equipmentId), onTap: () => _selectMachine(m))).toList())),
-            if (_selectedMachine != null) Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(top: 8), child: Text('Selected: ${_selectedMachine!.equipmentName}', style: const TextStyle(fontWeight: FontWeight.w600)))),
+            if (_showSuggestions && suggestions.isNotEmpty) Card(child: Column(children: suggestions.map((m) => ListTile(title: Text(m.displayName), subtitle: Text(m.equipmentId), onTap: () => _selectMachine(m))).toList())),
+            if (_selectedMachine != null) Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(top: 8), child: Text('Selected: ${_selectedMachine!.displayName}', style: const TextStyle(fontWeight: FontWeight.w600)))),
           ]);
         }),
         const SizedBox(height: 20),
@@ -524,7 +524,7 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
                 Row(children: [
                   CircleAvatar(radius: 16, child: Text(_typeCode(order), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
                   const SizedBox(width: 10),
-                  Expanded(child: Text('Machine: ${machine?.equipmentName ?? order.machineId}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
+                  Expanded(child: Text('Machine: ${machine?.displayName ?? order.machineId}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
                 ]),
                 if (machine?.equipmentId.isNotEmpty == true) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Equipment ID: ${machine!.equipmentId}')),
                 if (order.type == 'preventive' && order.preventiveTypes.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Preventive type: ${order.preventiveTypes.join(', ')}')),

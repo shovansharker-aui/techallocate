@@ -83,7 +83,7 @@ class _AssignmentCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        machine?.equipmentName ?? order.machineId,
+                        machine?.displayName ?? order.machineId,
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                     ),

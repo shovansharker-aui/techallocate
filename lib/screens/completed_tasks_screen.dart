@@ -174,7 +174,7 @@ class _CompletedTasksScreenState extends State<CompletedTasksScreen> {
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ExpansionTile(
                     leading: CircleAvatar(child: Text(taskTypeCode(order.type))),
-                    title: Text(machine?.equipmentName ?? order.machineId, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    title: Text(machine?.displayName ?? order.machineId, maxLines: 1, overflow: TextOverflow.ellipsis),
                     subtitle: Text([
                       if (_typeDetail(order).isNotEmpty) _typeDetail(order),
                       _formatDate(order.completedAt),
@@ -372,7 +372,7 @@ class _PaginatedMonthlyTasksState extends State<_PaginatedMonthlyTasks> {
             margin: const EdgeInsets.only(bottom: 8),
             child: ExpansionTile(
               leading: CircleAvatar(child: Text(widget.typeCode(order))),
-              title: Text(machine?.equipmentName ?? order.machineId, maxLines: 1, overflow: TextOverflow.ellipsis),
+              title: Text(machine?.displayName ?? order.machineId, maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: Text([
                 if (widget.typeDetail(order).isNotEmpty) widget.typeDetail(order),
                 widget.formatDate(order.completedAt),

@@ -78,8 +78,8 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
 
                     // One tile per task, not per person.
                     orders.sort((a, b) {
-                      final aName = machines[a.machineId]?.equipmentName ?? a.machineId;
-                      final bName = machines[b.machineId]?.equipmentName ?? b.machineId;
+                      final aName = machines[a.machineId]?.displayName ?? a.machineId;
+                      final bName = machines[b.machineId]?.displayName ?? b.machineId;
                       return aName.toLowerCase().compareTo(bName.toLowerCase());
                     });
 
@@ -108,7 +108,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                       children: [
                                         Expanded(
                                           child: Text(
-                                            machine?.equipmentName ?? order.machineId,
+                                            machine?.displayName ?? order.machineId,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),

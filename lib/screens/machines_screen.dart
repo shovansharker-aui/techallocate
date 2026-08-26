@@ -106,11 +106,11 @@ class _MachinesScreenState extends State<MachinesScreen> {
                                 backgroundColor: _categoryColor(machine.category),
                                 child: const Icon(Icons.precision_manufacturing, color: Colors.white, size: 18),
                               ),
-                              title: Text(machine.equipmentName),
+                              title: Text(machine.displayName),
                               subtitle: Text(
                                 machine.brand.isEmpty
                                     ? '${machine.equipmentId} · ${machine.category}'
-                                    : '${machine.equipmentId} · ${machine.brand} · ${machine.category}',
+                                    : '${machine.equipmentId} · ${machine.equipmentName} · ${machine.category}',
                               ),
                               trailing: const Icon(Icons.chevron_right),
                               onTap: () => _showMachineForm(context, machine: machine),
@@ -254,7 +254,7 @@ class _MachineFormSheetState extends State<_MachineFormSheet> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete machine?'),
-        content: Text('Remove "${widget.machine!.equipmentName}"? This cannot be undone.'),
+        content: Text('Remove "${widget.machine!.displayName}"? This cannot be undone.'),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
           FilledButton(
@@ -318,7 +318,7 @@ class _MachineFormSheetState extends State<_MachineFormSheet> {
             const SizedBox(height: 12),
             TextField(
               controller: _brandController,
-              decoration: const InputDecoration(labelText: 'Brand (optional)', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'Nickname (optional)', border: OutlineInputBorder()),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(

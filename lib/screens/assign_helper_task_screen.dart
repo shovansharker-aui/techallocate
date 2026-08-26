@@ -45,12 +45,13 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
     if (search.isEmpty) return const [];
     final matches = machines
         .where((m) =>
+            m.displayName.toLowerCase().contains(search) ||
             m.equipmentName.toLowerCase().contains(search) ||
             m.equipmentId.toLowerCase().contains(search))
         .toList();
     matches.sort((a, b) {
       int score(Machine m) {
-        final n = m.equipmentName.toLowerCase();
+        final n = m.displayName.toLowerCase();
         final id = m.equipmentId.toLowerCase();
         return (n == search || id == search)
             ? 0
@@ -61,7 +62,7 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
 
       final c = score(a).compareTo(score(b));
       return c == 0
-          ? a.equipmentName.toLowerCase().compareTo(b.equipmentName.toLowerCase())
+          ? a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase())
           : c;
     });
     return matches.take(5).toList();
@@ -71,7 +72,7 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
     setState(() {
       _selectedMachine = machine;
       _selectedMachineId = machine.id;
-      _machineSearchController.text = machine.equipmentName;
+      _machineSearchController.text = machine.displayName;
       _machineSearchController.selection = TextSelection.fromPosition(
         TextPosition(offset: _machineSearchController.text.length),
       );
@@ -294,7 +295,7 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
                           children: suggestions
                               .map(
                                 (machine) => ListTile(
-                                  title: Text(machine.equipmentName),
+                                  title: Text(machine.displayName),
                                   subtitle: Text(machine.equipmentId),
                                   onTap: () => _selectMachine(machine),
                                 ),
@@ -308,7 +309,7 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
                         child: Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
-                            'Selected: ${_selectedMachine!.equipmentName}',
+                            'Selected: ${_selectedMachine!.displayName}',
                             style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ),
@@ -324,10 +325,7 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _typeChip('preventive', 'PM · Preventive'),
-                _typeChip('breakdown', 'BM · Breakdown'),
-                _typeChip('calibration', 'CL · Calibration'),
-                _typeChip('adjustment', 'AD · Adjustment'),
+                for (final t in allTaskTypes) _typeChip(t, taskTypeCodeAndName(t)),
               ],
             ),
             if (_type == 'preventive') ...[

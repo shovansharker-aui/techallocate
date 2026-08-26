@@ -6,7 +6,7 @@ import '../utils/app_colors.dart';
 
 // Bulk-import machines from a CSV file. Expected columns (header row
 // required, any order, case-insensitive):
-//   Equipment ID, Equipment Name, Brand, Category
+//   Equipment ID, Equipment Name, Nickname, Category
 // Category must be Engineering, Production, or Warehouse.
 // Matching by Equipment ID: if a machine with that ID already exists,
 // it's updated instead of duplicated.
@@ -64,7 +64,7 @@ class _BulkImportMachinesScreenState extends State<BulkImportMachinesScreen> {
     final header = table.first.map((c) => c.toString().trim().toLowerCase()).toList();
     final idCol = header.indexWhere((h) => h.contains('equipment id') || h == 'id');
     final nameCol = header.indexWhere((h) => h.contains('equipment name') || h == 'name');
-    final brandCol = header.indexWhere((h) => h.contains('brand'));
+    final brandCol = header.indexWhere((h) => h.contains('brand') || h.contains('nickname'));
     final categoryCol = header.indexWhere((h) => h.contains('category'));
 
     if (idCol == -1 || nameCol == -1) {
@@ -178,9 +178,9 @@ class _BulkImportMachinesScreenState extends State<BulkImportMachinesScreen> {
                 padding: EdgeInsets.all(14),
                 child: Text(
                   'CSV format: a header row, then one machine per row.\n\n'
-                  'Columns needed: Equipment ID, Equipment Name, Brand, Category\n\n'
+                  'Columns needed: Equipment ID, Equipment Name, Nickname, Category\n\n'
                   '"Category" must be Engineering, Production, or Warehouse. '
-                  '"Brand" is optional. If a machine with a matching Equipment ID '
+                  '"Nickname" is optional. If a machine with a matching Equipment ID '
                   'already exists, it will be updated instead of duplicated.\n\n'
                   'Exported from Excel or Google Sheets as CSV works fine.',
                 ),

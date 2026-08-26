@@ -41,7 +41,7 @@ class CompletedTasksSection extends StatelessWidget {
                 return Column(children: orders.take(8).map((o) {
                   final machine = machines[o.machineId];
                   final names = o.assignedTechnicianIds.map((id) => techs[id]?.name).whereType<String>().toList();
-                  return ListTile(dense: true, contentPadding: EdgeInsets.zero, leading: CircleAvatar(radius: 16, child: Text(_type(o))), title: Text(machine?.equipmentName ?? o.machineId, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text('${names.join(', ')} · ${_duration(o.durationSeconds)}'),);
+                  return ListTile(dense: true, contentPadding: EdgeInsets.zero, leading: CircleAvatar(radius: 16, child: Text(_type(o))), title: Text(machine?.displayName ?? o.machineId, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text('${names.join(', ')} · ${_duration(o.durationSeconds)}'),);
                 }).toList());
               },
             ),
