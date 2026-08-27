@@ -4,6 +4,7 @@ import '../models/helper.dart';
 import '../models/machine.dart';
 import '../widgets_root_back_scope.dart';
 import '../utils/app_colors.dart';
+import '../utils/task_type.dart';
 
 /// Creates a running work order for helper(s) without assigning the logged-in
 /// technician to the work order. The technician therefore remains available.
