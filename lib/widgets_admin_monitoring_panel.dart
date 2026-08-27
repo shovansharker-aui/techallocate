@@ -217,7 +217,11 @@ class AdminMonitoringPanel extends StatelessWidget {
                             contentPadding: EdgeInsets.zero,
                             leading: CircleAvatar(radius: 16, child: Text(jo.name.isEmpty ? '?' : jo.name[0].toUpperCase())),
                             title: Text(jo.name),
-                            subtitle: Text(jo.dutyStatus == 'night' ? 'Night duty' : 'Day duty'),
+                            subtitle: Text(switch (jo.dutyStatus) {
+                              'day_ot' => 'Day + OT',
+                              'day_night' => 'Day + Night',
+                              _ => 'Day',
+                            }),
                           )),
                         const SizedBox(height: 12),
                         Text('CF (${cfs.length})', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.muted)),
