@@ -202,15 +202,16 @@ class _CompletedTasksScreenState extends State<CompletedTasksScreen> {
   Widget build(BuildContext context) {
     final monthStart = _month;
     final monthEnd = DateTime(_month.year, _month.month + 1);
-    final last24 = DateTime.now().subtract(const Duration(hours: 24));
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
     return Scaffold(
       appBar: AppBar(title: const Text('Completed Tasks')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Last 24 Hours', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const Text('Today', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          _taskList(start: last24, end: DateTime.now().add(const Duration(minutes: 1))),
+          _taskList(start: todayStart, end: now.add(const Duration(minutes: 1))),
           const SizedBox(height: 28),
           Row(
             children: [

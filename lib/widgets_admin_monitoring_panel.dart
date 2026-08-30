@@ -41,7 +41,6 @@ class AdminMonitoringPanel extends StatelessWidget {
                 final clCount = countType('calibration');
                 final adCount = countType('adjustment');
                 final coCount = countType('changeover');
-                final trCount = countType('trial');
                 final otCount = countType('others');
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   AndroidWidgetService.update(
@@ -72,9 +71,8 @@ class AdminMonitoringPanel extends StatelessWidget {
                       _SummaryRow('CL', '$clCount', onTap: clCount == 0 ? null : () => _showTasksOfType(context, 'calibration', 'Calibration tasks')),
                       _SummaryRow('AD', '$adCount', onTap: adCount == 0 ? null : () => _showTasksOfType(context, 'adjustment', 'Adjustment tasks')),
                       _SummaryRow('CO', '$coCount', onTap: coCount == 0 ? null : () => _showTasksOfType(context, 'changeover', 'Changeover tasks')),
-                      _SummaryRow('TR', '$trCount', onTap: trCount == 0 ? null : () => _showTasksOfType(context, 'trial', 'Trial tasks')),
                       _SummaryRow('OT', '$otCount', onTap: otCount == 0 ? null : () => _showTasksOfType(context, 'others', 'Other tasks')),
-                    ]);
+                    ], twoColumn: true);
                     if (!sideBySide) {
                       return Column(children: [jo, const SizedBox(height: 12), task]);
                     }
@@ -105,7 +103,41 @@ class AdminMonitoringPanel extends StatelessWidget {
     );
   }
 
-  Widget _summaryCard(String title, IconData icon, List<_SummaryRow> rows, {VoidCallback? onTap}) {
+  Widget _summaryCard(String title, IconData icon, List<_SummaryRow> rows, {VoidCallback? onTap, bool twoColumn = false}) {
+    Widget buildRow(_SummaryRow row) {
+      final content = Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(children: [
+          Text(row.label, style: const TextStyle(fontSize: 14, color: AppColors.muted, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 8),
+          Text('- ${row.value}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          if (row.onTap != null) ...[
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, size: 16, color: AppColors.muted),
+          ],
+        ]),
+      );
+      if (row.onTap == null) return content;
+      return InkWell(borderRadius: BorderRadius.circular(6), onTap: row.onTap, child: content);
+    }
+
+    final List<Widget> rowWidgets;
+    if (twoColumn) {
+      // Pair rows into 2-column x N-row grid instead of stacking every
+      // row in a single column — keeps the card compact when there are
+      // several types to show.
+      rowWidgets = [];
+      for (var i = 0; i < rows.length; i += 2) {
+        final second = i + 1 < rows.length ? rows[i + 1] : null;
+        rowWidgets.add(Row(children: [
+          Expanded(child: buildRow(rows[i])),
+          Expanded(child: second == null ? const SizedBox.shrink() : buildRow(second)),
+        ]));
+      }
+    } else {
+      rowWidgets = rows.map(buildRow).toList();
+    }
+
     final card = Card(
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -121,22 +153,7 @@ class AdminMonitoringPanel extends StatelessWidget {
               if (onTap != null) const Icon(Icons.touch_app_outlined, size: 16, color: AppColors.muted),
             ]),
             const SizedBox(height: 10),
-            ...rows.map((row) {
-              final content = Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(children: [
-                  Text(row.label, style: const TextStyle(fontSize: 14, color: AppColors.muted, fontWeight: FontWeight.w600)),
-                  const SizedBox(width: 8),
-                  Text('- ${row.value}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                  if (row.onTap != null) ...[
-                    const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right, size: 16, color: AppColors.muted),
-                  ],
-                ]),
-              );
-              if (row.onTap == null) return content;
-              return InkWell(borderRadius: BorderRadius.circular(6), onTap: row.onTap, child: content);
-            }),
+            ...rowWidgets,
           ],
         ),
       ),
