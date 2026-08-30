@@ -22,6 +22,157 @@ Future<void> main() async {
 class TechAllocateApp extends StatelessWidget {
   const TechAllocateApp({super.key});
 
+  // One theme builder shared by light and dark mode, so both stay in sync
+  // stylistically — rounded corners, soft shadows, and a richer color
+  // palette everywhere, plus iOS-style push/pop page transitions on every
+  // platform (Android and web included) for that fluid, native-feeling
+  // navigation.
+  static ThemeData _buildTheme(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: AppColors.primary,
+      brightness: brightness,
+      // A slightly richer, warmer secondary/tertiary pairing than the
+      // seed alone would generate — gives the app a more colorful,
+      // less "default Material blue" feel while staying harmonious.
+      secondary: isDark ? const Color(0xFF7FCFFF) : const Color(0xFF0288D1),
+      tertiary: isDark ? const Color(0xFFFFB74D) : const Color(0xFFEF6C00),
+    );
+
+    final scaffoldBg = isDark ? const Color(0xFF0F1115) : const Color(0xFFF5F7FA);
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: scaffoldBg,
+      visualDensity: VisualDensity.adaptivePlatformDensity,
+
+      // iOS-style slide transitions everywhere, not just on iOS — this is
+      // most of what actually makes navigation *feel* like iOS.
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+        },
+      ),
+
+      appBarTheme: AppBarTheme(
+        backgroundColor: scaffoldBg,
+        foregroundColor: colorScheme.onSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: colorScheme.onSurface,
+        ),
+      ),
+
+      cardTheme: CardThemeData(
+        elevation: isDark ? 0 : 1.5,
+        shadowColor: colorScheme.primary.withValues(alpha: 0.12),
+        surfaceTintColor: Colors.transparent,
+        color: isDark ? const Color(0xFF1A1D23) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        margin: EdgeInsets.zero,
+      ),
+
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          side: BorderSide(color: colorScheme.outlineVariant),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: isDark ? const Color(0xFF1A1D23) : Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: colorScheme.outlineVariant),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: colorScheme.outlineVariant),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: colorScheme.primary, width: 1.6),
+        ),
+      ),
+
+      chipTheme: ChipThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        side: BorderSide.none,
+        backgroundColor: isDark ? const Color(0xFF23262E) : colorScheme.surfaceContainerHighest,
+        selectedColor: colorScheme.primaryContainer,
+        labelStyle: TextStyle(fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      ),
+
+      dialogTheme: DialogThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        surfaceTintColor: Colors.transparent,
+        backgroundColor: isDark ? const Color(0xFF1A1D23) : Colors.white,
+      ),
+
+      bottomSheetTheme: BottomSheetThemeData(
+        surfaceTintColor: Colors.transparent,
+        backgroundColor: isDark ? const Color(0xFF1A1D23) : Colors.white,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      ),
+
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+
+      listTileTheme: ListTileThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      ),
+
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        elevation: 2,
+      ),
+
+      dividerTheme: DividerThemeData(
+        color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        space: 1,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -31,20 +182,8 @@ class TechAllocateApp extends StatelessWidget {
           title: 'TechAllocate',
           debugShowCheckedModeBanner: false,
           themeMode: themeService.mode,
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: AppColors.primary,
-              brightness: Brightness.light,
-            ),
-            useMaterial3: true,
-          ),
-          darkTheme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: AppColors.primary,
-              brightness: Brightness.dark,
-            ),
-            useMaterial3: true,
-          ),
+          theme: _buildTheme(Brightness.light),
+          darkTheme: _buildTheme(Brightness.dark),
           home: const AuthGate(),
         );
       },
