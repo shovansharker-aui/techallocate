@@ -1,9 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../services/communication_service.dart';
-import 'add_employee_screen.dart';
+import 'add_personnel_screen.dart';
 import 'machines_screen.dart';
-import 'add_helper_screen.dart';
 import '../utils/app_colors.dart';
 import '../services/theme_service.dart';
 
@@ -43,18 +42,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           Card(child: ListTile(
             leading: const CircleAvatar(child: Icon(Icons.person_add_alt_1_outlined)),
-            title: const Text('Add New Employee'),
-            subtitle: const Text('Create a Junior Officer account with name, employee ID, phone and PIN.'),
+            title: const Text('Add Personnel'),
+            subtitle: const Text('Add a Maintenance JO, Maintenance CF, or Water Plant Personnel.'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddEmployeeScreen())),
-          )),
-          const SizedBox(height: 10),
-          Card(child: ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.handyman_outlined)),
-            title: const Text('CFs'),
-            subtitle: const Text('Add CFs who can accompany Junior Officers without using the app.'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddHelperScreen())),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddPersonnelScreen())),
           )),
           const SizedBox(height: 10),
           Card(child: ListTile(

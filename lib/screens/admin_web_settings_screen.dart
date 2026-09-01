@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'add_employee_screen.dart';
+import 'add_personnel_screen.dart';
 import 'machines_screen.dart';
-import 'add_helper_screen.dart';
 import '../services/theme_service.dart';
 
 class AdminWebSettingsScreen extends StatelessWidget {
@@ -40,32 +39,14 @@ class AdminWebSettingsScreen extends StatelessWidget {
                     child: Icon(Icons.person_add_alt_1_outlined),
                   ),
                   title: const Text(
-                    'Add New Employee',
+                    'Add Personnel',
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   subtitle: const Text(
-                    'Create a Junior Officer account with name, employee ID, phone and PIN.',
+                    'Add a Maintenance JO, Maintenance CF, or Water Plant Personnel.',
                   ),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _open(context, const AddEmployeeScreen()),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.handyman_outlined),
-                  ),
-                  title: const Text(
-                    'CFs',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: const Text(
-                    'Add CFs who can accompany Junior Officers without using the app.',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _open(context, const AddHelperScreen()),
+                  onTap: () => _open(context, const AddPersonnelScreen()),
                 ),
               ),
               const SizedBox(height: 12),
