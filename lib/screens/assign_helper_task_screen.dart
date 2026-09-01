@@ -179,6 +179,9 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
     final ref = firestore.collection('work_orders').doc();
     final batch = firestore.batch();
 
+    // Client-side timestamp, not FieldValue.serverTimestamp() — same
+    // reasoning as the technician's own Start Task flow.
+    final startedNow = Timestamp.fromDate(DateTime.now());
     batch.set(ref, {
       'type': _type,
       'preventiveTypes': _type == 'preventive' ? _preventiveTypes.toList() : <String>[],
@@ -189,8 +192,8 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
       'assignedTechnicianIds': <String>[],
       'helperIds': _selectedHelperIds.toList(),
       'createdBy': widget.uid,
-      'createdAt': FieldValue.serverTimestamp(),
-      'startedAt': FieldValue.serverTimestamp(),
+      'createdAt': startedNow,
+      'startedAt': startedNow,
       'helperOnlyAssignment': true,
     });
 

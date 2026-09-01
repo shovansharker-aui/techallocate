@@ -21,7 +21,8 @@ class CompletedTasksSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cutoff = DateTime.now().subtract(const Duration(hours: 24));
+    final now = DateTime.now();
+    final cutoff = DateTime(now.year, now.month, now.day);
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance.collection('work_orders').where('status', isEqualTo: 'completed').where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(cutoff)).snapshots(),
       builder: (context, snapshot) {
@@ -29,8 +30,8 @@ class CompletedTasksSection extends StatelessWidget {
         final orders = (snapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data())).toList()
           ..sort((a, b) => (b.completedAt ?? DateTime(1970)).compareTo(a.completedAt ?? DateTime(1970)));
         return Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [const Expanded(child: Text('Completed Tasks · Last 24 Hours', style: TextStyle(fontWeight: FontWeight.bold))), TextButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CompletedTasksScreen())), child: const Text('View History'))]),
-          if (orders.isEmpty) const Padding(padding: EdgeInsets.all(8), child: Text('No task completed in the last 24 hours.'))
+          Row(children: [const Expanded(child: Text('Completed Tasks · Today', style: TextStyle(fontWeight: FontWeight.bold))), TextButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CompletedTasksScreen())), child: const Text('View History'))]),
+          if (orders.isEmpty) const Padding(padding: EdgeInsets.all(8), child: Text('No task completed today.'))
           else FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
             future: FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'technician').get(),
             builder: (context, techSnapshot) => FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(

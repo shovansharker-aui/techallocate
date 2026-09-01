@@ -1,4 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'screens/login_screen.dart';
@@ -14,6 +16,28 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Android/iOS already cache Firestore data locally by default — this
+  // just makes that explicit and removes any cache-size limit, since a
+  // JO offline for a whole shift should keep working, not have their
+  // cache silently evicted. Web needs this turned on explicitly (off by
+  // default), which is what makes offline task-starting possible on the
+  // web/PWA version too.
+  if (kIsWeb) {
+    try {
+      await FirebaseFirestore.instance.enablePersistence(
+        const PersistenceSettings(synchronizeTabs: true),
+      );
+    } catch (_) {
+      // Multiple tabs open already, or the browser doesn't support it —
+      // the app still works fine, just without offline caching there.
+    }
+  } else {
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+  }
 
   await themeService.load();
 

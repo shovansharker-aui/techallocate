@@ -239,6 +239,11 @@ class _StartTaskPageState extends State<_StartTaskPage> {
     final firestore = FirebaseFirestore.instance;
     final ref = firestore.collection('work_orders').doc();
     final batch = firestore.batch();
+    // Client-side timestamp, not FieldValue.serverTimestamp(): if this
+    // write happens while offline, serverTimestamp() would resolve to
+    // whenever it eventually SYNCS, not when the task actually started —
+    // silently erasing however long the JO was genuinely working offline.
+    final startedNow = Timestamp.fromDate(DateTime.now());
     batch.set(ref, {
       'type': _type,
       'preventiveTypes': _type == 'preventive' ? _preventiveTypes.toList() : <String>[],
@@ -249,8 +254,8 @@ class _StartTaskPageState extends State<_StartTaskPage> {
       'assignedTechnicianIds': [widget.uid],
       'helperIds': _selectedHelperIds.toList(),
       'createdBy': widget.uid,
-      'createdAt': FieldValue.serverTimestamp(),
-      'startedAt': FieldValue.serverTimestamp(),
+      'createdAt': startedNow,
+      'startedAt': startedNow,
     });
     batch.update(firestore.collection('users').doc(widget.uid), {'status': 'assigned', 'currentTaskId': ref.id});
     for (final id in _selectedHelperIds) {
@@ -487,7 +492,7 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
     final batch = firestore.batch();
     batch.update(firestore.collection('work_orders').doc(widget.taskId), {
       'status': 'completed',
-      'completedAt': FieldValue.serverTimestamp(),
+      'completedAt': Timestamp.fromDate(now),
       'durationSeconds': duration,
       'completionRemarks': remarks,
     });
