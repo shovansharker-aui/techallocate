@@ -10,16 +10,14 @@ import 'offline_commit.dart';
 ///  - a Junior Officer closing a CF-only task they assigned (the CF has
 ///    no login of their own, so someone else has to be able to close it)
 ///
-/// Returns whether the write reached the server or was only queued
-/// locally (no signal) — callers can use this to tell the user their
-/// action was saved and will sync automatically, rather than assuming
-/// silence means success.
-Future<CommitOutcome> completeWorkOrder({
+/// Fires the write and returns immediately — see offline_commit.dart for
+/// why callers never wait on this before updating their own UI.
+void completeWorkOrder({
   required String orderId,
   required List<String> technicianIds,
   required List<String> helperIds,
   required DateTime completedAt,
-}) async {
+}) {
   final firestore = FirebaseFirestore.instance;
   final batch = firestore.batch();
 
@@ -40,21 +38,7 @@ Future<CommitOutcome> completeWorkOrder({
     });
   }
 
-  // Same offline-tolerant pattern as starting a task: the completion is
-  // applied to the local cache immediately regardless of connectivity,
-  // so we don't block the caller's UI waiting for a server ack that may
-  // not arrive until the JO or admin is back in signal.
-  return commitAllowingOffline(batch);
-}
-
-/// Shows a short "saved, will sync" message if [outcome] was queued
-/// offline. Safe to call unconditionally after any completeWorkOrder /
-/// commitAllowingOffline call — it does nothing when already synced.
-void showOfflineSyncNoticeIfNeeded(BuildContext context, CommitOutcome outcome) {
-  if (outcome != CommitOutcome.queuedOffline) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text("No signal — saved on this phone and will sync automatically once you're back online.")),
-  );
+  commitAllowingOffline(batch);
 }
 
 /// Shows a small "Now" vs "Specific time" choice, then returns the chosen

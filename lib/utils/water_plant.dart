@@ -2,14 +2,35 @@
 // manager dashboard and the admin's live view always agree on what
 // "currently assigned" means.
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+/// Firestore location of the Water Plant module's shared settings —
+/// currently just the "Switching" toggle. A single document so the
+/// overview dashboard, the duty allocation screen, and the swap
+/// calculation below all agree on the same value.
+final waterPlantSettingsRef = FirebaseFirestore.instance.collection('settings').doc('water_plant');
+
+/// Reads the Switching toggle out of a settings document's data,
+/// defaulting to true — the swap behavior every install had before this
+/// toggle existed — if the document hasn't been created yet.
+bool switchingEnabledFrom(Map<String, dynamic>? settingsData) =>
+    (settingsData?['switchingEnabled'] as bool?) ?? true;
+
 /// The plant a person is actually AT right now, given the plant their
-/// manager set for the morning. Personnel physically swap plants at
-/// 1:00 PM each day, so after that time the effective assignment is the
-/// opposite of whatever was set — computed fresh on every read, no
-/// scheduled job needed.
-String effectivePlant(String morningPlant) {
+/// manager set for the morning.
+///
+/// When [switchingEnabled] is true, personnel physically swap plants
+/// after 7:30 AM each day, so from that time on the effective assignment
+/// is the opposite of whatever was set that morning — computed fresh on
+/// every read, no scheduled job needed. When [switchingEnabled] is
+/// false, no swap ever happens and everyone simply stays on their
+/// morning assignment all day; this is an admin-controlled setting (see
+/// the "Switching" toggle on the Water Plant dashboard), not a fixed
+/// behavior.
+String effectivePlant(String morningPlant, {required bool switchingEnabled}) {
+  if (!switchingEnabled) return morningPlant;
   final now = DateTime.now();
-  final swapTime = DateTime(now.year, now.month, now.day, 13);
+  final swapTime = DateTime(now.year, now.month, now.day, 7, 30);
   final swapped = now.isAfter(swapTime);
   if (!swapped) return morningPlant;
   return morningPlant == 'gp' ? 'softgel' : 'gp';

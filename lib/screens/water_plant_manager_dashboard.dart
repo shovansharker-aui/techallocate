@@ -1,39 +1,29 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/water_plant_personnel.dart';
-import '../services/technician_session_service.dart';
 import '../utils/app_colors.dart';
 import '../utils/water_plant.dart';
 import '../utils/offline_commit.dart';
-import 'login_screen.dart';
 
-// Landing screen for the generic Water Plant login. Shows every Water
-// Plant Personnel with a Day/Night/On-Leave toggle and a GP/Softgel
-// toggle, edited locally and saved all at once via Confirm — rather than
-// writing to Firestore on every single tap.
-class WaterPlantManagerDashboard extends StatefulWidget {
-  const WaterPlantManagerDashboard({super.key});
+// The per-person Day/Night/On-Leave + GP/Softgel editing table, reached
+// from the "waterplant" account's overview dashboard via the calendar
+// icon in the AppBar (or from anywhere else that pushes this screen).
+// Since this is always pushed on top of another screen now, it doesn't
+// carry its own logout button — the normal back arrow returns to
+// whichever dashboard opened it.
+class WaterPlantDutyAllocationScreen extends StatefulWidget {
+  const WaterPlantDutyAllocationScreen({super.key});
 
   @override
-  State<WaterPlantManagerDashboard> createState() => _WaterPlantManagerDashboardState();
+  State<WaterPlantDutyAllocationScreen> createState() => _WaterPlantDutyAllocationScreenState();
 }
 
-class _WaterPlantManagerDashboardState extends State<WaterPlantManagerDashboard> {
+class _WaterPlantDutyAllocationScreenState extends State<WaterPlantDutyAllocationScreen> {
   final Map<String, String> _dutyEdits = {};
   final Map<String, String> _plantEdits = {};
   bool _isSaving = false;
 
-  Future<void> _logout(BuildContext context) async {
-    await TechnicianSessionService().clear();
-    if (context.mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
-    }
-  }
-
-  Future<void> _confirm(List<WaterPlantPersonnel> people) async {
+  void _confirm(List<WaterPlantPersonnel> people) {
     setState(() => _isSaving = true);
     final firestore = FirebaseFirestore.instance;
     final batch = firestore.batch();
@@ -46,106 +36,95 @@ class _WaterPlantManagerDashboardState extends State<WaterPlantManagerDashboard>
         'statusSetAt': FieldValue.serverTimestamp(),
       });
     }
-    try {
-      final outcome = await commitAllowingOffline(batch);
-      if (mounted) {
-        setState(() {
-          _dutyEdits.clear();
-          _plantEdits.clear();
-          _isSaving = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              outcome == CommitOutcome.queuedOffline
-                  ? "No signal — status saved and will sync automatically once you're back online."
-                  : 'Status updated.',
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save: $e')),
-        );
-      }
-    }
+    // Fire-and-forget: applies to the local cache immediately regardless
+    // of signal, so there's nothing to wait on before letting the
+    // manager get on with their day.
+    commitAllowingOffline(batch);
+    setState(() {
+      _dutyEdits.clear();
+      _plantEdits.clear();
+      _isSaving = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Status updated.')),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Water Plant'),
-        actions: [
-          IconButton(icon: const Icon(Icons.logout), tooltip: 'Log out', onPressed: () => _logout(context)),
-        ],
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance.collection('water_plant_personnel').orderBy('name').snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Unable to load: ${snapshot.error}'));
-          }
-          final people = (snapshot.data?.docs ?? [])
-              .map((d) => WaterPlantPersonnel.fromMap(d.id, d.data()))
-              .toList();
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: waterPlantSettingsRef.snapshots(),
+      builder: (context, settingsSnapshot) {
+        final switchingEnabled = switchingEnabledFrom(settingsSnapshot.data?.data());
 
-          if (people.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'No Water Plant Personnel added yet.\n\nAsk an admin to add some from Settings \u2192 Add Personnel.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          }
+        return Scaffold(
+          appBar: AppBar(title: const Text('Duty Allocation')),
+          body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance.collection('water_plant_personnel').orderBy('name').snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text('Unable to load: ${snapshot.error}'));
+              }
+              final people = (snapshot.data?.docs ?? [])
+                  .map((d) => WaterPlantPersonnel.fromMap(d.id, d.data()))
+                  .toList();
 
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Set each person\'s status for today, then tap Confirm.',
-                  style: TextStyle(color: AppColors.muted),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: people.length,
-                    itemBuilder: (context, index) => _PersonRow(
-                      person: people[index],
-                      dutyOverride: _dutyEdits[people[index].id],
-                      plantOverride: _plantEdits[people[index].id],
-                      onDutyChanged: (value) => setState(() => _dutyEdits[people[index].id] = value),
-                      onPlantChanged: (value) => setState(() => _plantEdits[people[index].id] = value),
+              if (people.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'No Water Plant Personnel added yet.\n\nAsk an admin to add some from Settings \u2192 Add Personnel.',
+                      textAlign: TextAlign.center,
                     ),
                   ),
+                );
+              }
+
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Set each person\'s status for today, then tap Confirm.',
+                      style: TextStyle(color: AppColors.muted),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: people.length,
+                        itemBuilder: (context, index) => _PersonRow(
+                          person: people[index],
+                          dutyOverride: _dutyEdits[people[index].id],
+                          plantOverride: _plantEdits[people[index].id],
+                          switchingEnabled: switchingEnabled,
+                          onDutyChanged: (value) => setState(() => _dutyEdits[people[index].id] = value),
+                          onPlantChanged: (value) => setState(() => _plantEdits[people[index].id] = value),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: FilledButton(
+                        onPressed: _isSaving ? null : () => _confirm(people),
+                        child: _isSaving
+                            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Text('Confirm'),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: FilledButton(
-                    onPressed: _isSaving ? null : () => _confirm(people),
-                    child: _isSaving
-                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Confirm'),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -154,6 +133,7 @@ class _PersonRow extends StatelessWidget {
   final WaterPlantPersonnel person;
   final String? dutyOverride;
   final String? plantOverride;
+  final bool switchingEnabled;
   final ValueChanged<String> onDutyChanged;
   final ValueChanged<String> onPlantChanged;
 
@@ -161,6 +141,7 @@ class _PersonRow extends StatelessWidget {
     required this.person,
     required this.dutyOverride,
     required this.plantOverride,
+    required this.switchingEnabled,
     required this.onDutyChanged,
     required this.onPlantChanged,
   });
@@ -169,7 +150,7 @@ class _PersonRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final duty = dutyOverride ?? person.dutyStatus;
     final plant = plantOverride ?? person.plant;
-    final currentlyAt = effectivePlant(plant);
+    final currentlyAt = effectivePlant(plant, switchingEnabled: switchingEnabled);
     final swapped = currentlyAt != plant;
 
     return Card(
@@ -200,9 +181,9 @@ class _PersonRow extends StatelessWidget {
               onSelectionChanged: (selection) => onPlantChanged(selection.first),
             ),
             if (swapped) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Text(
-                'Morning: ${plantLabel(plant)} \u2192 currently at ${plantLabel(currentlyAt)} (after 1PM swap)',
+                'Currently at ${plantLabel(currentlyAt)} (swapped from ${plantLabel(plant)})',
                 style: const TextStyle(fontSize: 12, color: AppColors.muted, fontStyle: FontStyle.italic),
               ),
             ],

@@ -111,7 +111,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                       children: [
                                         Expanded(
                                           child: Text(
-                                            machine?.displayName ?? order.machineId,
+                                            machine?.displayName ?? (order.machineId.isEmpty ? 'No machine' : order.machineId),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
@@ -143,13 +143,12 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                           onPressed: () async {
                                             final time = await pickCompletionTime(context, startedAt: order.startedAt);
                                             if (time == null) return;
-                                            final outcome = await completeWorkOrder(
+                                            completeWorkOrder(
                                               orderId: order.id,
                                               technicianIds: order.assignedTechnicianIds,
                                               helperIds: order.helperIds,
                                               completedAt: time,
                                             );
-                                            if (context.mounted) showOfflineSyncNoticeIfNeeded(context, outcome);
                                           },
                                           icon: const Icon(Icons.check_circle_outline, size: 15),
                                           label: const Text('Complete', style: TextStyle(fontSize: 12)),
@@ -179,7 +178,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(machine?.displayName ?? order.machineId),
+        title: Text(machine?.displayName ?? (order.machineId.isEmpty ? 'No machine' : order.machineId)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,

@@ -156,7 +156,6 @@ class _StartTaskPageState extends State<_StartTaskPage> {
   Machine? _selectedMachine;
   String _type = 'preventive';
   final Set<String> _preventiveTypes = <String>{};
-  final Set<String> _selectedHelperIds = <String>{};
   final _remarksController = TextEditingController();
   final _machineSearchController = TextEditingController();
   bool _isSaving = false;
@@ -164,7 +163,6 @@ class _StartTaskPageState extends State<_StartTaskPage> {
   String? _errorText;
 
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _machinesStream = FirebaseFirestore.instance.collection('machines').orderBy('equipmentName').snapshots();
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _helpersStream = FirebaseFirestore.instance.collection('helpers').orderBy('name').snapshots();
 
   @override
   void dispose() {
@@ -200,39 +198,12 @@ class _StartTaskPageState extends State<_StartTaskPage> {
     });
   }
 
-  Future<void> _chooseHelpers(List<Helper> helpers) async {
-    final available = helpers.where((h) => h.status == 'available' || _selectedHelperIds.contains(h.uid)).toList();
-    final result = Set<String>.from(_selectedHelperIds);
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) => StatefulBuilder(builder: (context, setSheetState) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('Select CFs', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            if (available.isEmpty) const Padding(padding: EdgeInsets.all(20), child: Text('No available CFs right now.'))
-            else ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 420),
-              child: ListView(shrinkWrap: true, children: available.map((h) => CheckboxListTile(
-                value: result.contains(h.uid),
-                title: Text(h.name),
-                secondary: const Icon(Icons.handyman_outlined),
-                onChanged: (v) => setSheetState(() => v == true ? result.add(h.uid) : result.remove(h.uid)),
-              )).toList()),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(width: double.infinity, child: FilledButton(onPressed: () { setState(() { _selectedHelperIds..clear()..addAll(result); }); Navigator.pop(sheetContext); }, child: Text('Done (${result.length} selected)'))),
-          ]),
-        ),
-      )),
-    );
-  }
-
   Future<void> _startTask() async {
     setState(() => _errorText = null);
-    if (_selectedMachineId == null) return setState(() => _errorText = 'Please select a machine.');
+    // Machine is only mandatory for real maintenance tasks. "Others" (OT)
+    // covers work with no specific machine — e.g. general housekeeping —
+    // so it can be started without picking one.
+    if (_type != 'others' && _selectedMachineId == null) return setState(() => _errorText = 'Please select a machine.');
     if (_type == 'preventive' && _preventiveTypes.isEmpty) return setState(() => _errorText = 'Select at least one preventive maintenance type.');
     if (_type == 'others' && _remarksController.text.trim().isEmpty) return setState(() => _errorText = 'Please describe what this task is.');
 
@@ -253,27 +224,19 @@ class _StartTaskPageState extends State<_StartTaskPage> {
       'priority': 'medium',
       'status': 'in_progress',
       'assignedTechnicianIds': [widget.uid],
-      'helperIds': _selectedHelperIds.toList(),
+      // CFs are no longer picked when starting a task — a JO adds them
+      // afterwards, from the running-task screen's "Add CF" button.
+      'helperIds': <String>[],
       'createdBy': widget.uid,
       'createdAt': startedNow,
       'startedAt': startedNow,
     });
     batch.update(firestore.collection('users').doc(widget.uid), {'status': 'assigned', 'currentTaskId': ref.id});
-    for (final id in _selectedHelperIds) {
-      batch.update(firestore.collection('helpers').doc(id), {'status': 'assigned', 'currentTaskId': ref.id});
-    }
     try {
-      // Waits briefly for a server ack; if there's no signal, treats the
-      // write as safely queued instead of hanging — the data (with the
-      // original startedNow timestamp above) is already saved locally and
-      // will sync on its own once connectivity returns.
-      final outcome = await commitAllowingOffline(batch);
+      // Fire the write and move on immediately — see offline_commit.dart
+      // for why we never wait on this, not even briefly.
+      commitAllowingOffline(batch);
       if (!mounted) return;
-      if (outcome == CommitOutcome.queuedOffline) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("No signal — task saved and will sync automatically once you're back online.")),
-        );
-      }
       Navigator.pop(context);
     } catch (e) {
       if (mounted) setState(() { _errorText = 'Failed to start task: $e'; _isSaving = false; });
@@ -285,7 +248,7 @@ class _StartTaskPageState extends State<_StartTaskPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Start a Task')),
       body: ListView(padding: const EdgeInsets.all(20), children: [
-        const Text('Machine', style: TextStyle(fontWeight: FontWeight.w600)),
+        Text(_type == 'others' ? 'Machine (optional)' : 'Machine', style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(stream: _machinesStream, builder: (context, snapshot) {
           if (snapshot.hasError) return Text('Unable to load machines: ${snapshot.error}');
@@ -296,7 +259,7 @@ class _StartTaskPageState extends State<_StartTaskPage> {
               controller: _machineSearchController,
               onChanged: (v) => setState(() { _selectedMachine = null; _selectedMachineId = null; _showSuggestions = v.trim().isNotEmpty; }),
               onTap: () => setState(() => _showSuggestions = _machineSearchController.text.trim().isNotEmpty),
-              decoration: InputDecoration(labelText: 'Search machine', hintText: 'Machine name or equipment ID', prefixIcon: const Icon(Icons.search), suffixIcon: _selectedMachine == null ? null : IconButton(onPressed: () => setState(() { _selectedMachine = null; _selectedMachineId = null; _machineSearchController.clear(); }), icon: const Icon(Icons.clear)), border: const OutlineInputBorder()),
+              decoration: InputDecoration(labelText: _type == 'others' ? 'Search machine (optional)' : 'Search machine', hintText: 'Machine name or equipment ID', prefixIcon: const Icon(Icons.search), suffixIcon: _selectedMachine == null ? null : IconButton(onPressed: () => setState(() { _selectedMachine = null; _selectedMachineId = null; _machineSearchController.clear(); }), icon: const Icon(Icons.clear)), border: const OutlineInputBorder()),
             ),
             if (_showSuggestions && suggestions.isNotEmpty) Card(child: Column(children: suggestions.map((m) => ListTile(title: Text(m.displayName), subtitle: Text(m.equipmentId), onTap: () => _selectMachine(m))).toList())),
             if (_selectedMachine != null) Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(top: 8), child: Text('Selected: ${_selectedMachine!.displayName}', style: const TextStyle(fontWeight: FontWeight.w600)))),
@@ -332,28 +295,6 @@ class _StartTaskPageState extends State<_StartTaskPage> {
             }).toList(),
           ),
         ],
-        const SizedBox(height: 18),
-        const Text('CFs (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 6),
-        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(stream: _helpersStream, builder: (context, snapshot) {
-          if (snapshot.hasError) return Text('Unable to load CFs: ${snapshot.error}');
-          final helpers = snapshot.data?.docs.map((d) => Helper.fromMap(d.id, d.data())).toList() ?? [];
-          final selected = helpers.where((h) => _selectedHelperIds.contains(h.uid)).toList();
-          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            OutlinedButton.icon(onPressed: () => _chooseHelpers(helpers), icon: const Icon(Icons.group_add_outlined), label: Text(selected.isEmpty ? 'Select CF(s)' : 'Change CF(s) · ${selected.length}')),
-            if (selected.isNotEmpty)
-              Wrap(
-                spacing: 6,
-                children: selected.map((h) {
-                  return Chip(
-                    avatar: const Icon(Icons.handyman_outlined, size: 16),
-                    label: Text(h.name),
-                    onDeleted: () => setState(() => _selectedHelperIds.remove(h.uid)),
-                  );
-                }).toList(),
-              ),
-          ]);
-        }),
         const SizedBox(height: 18),
         Text(
           _type == 'others' ? 'What is this task? (required)' : 'Starting remarks (optional)',
@@ -475,9 +416,9 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
         final batch = firestore.batch();
         batch.update(firestore.collection('work_orders').doc(widget.taskId), {'helperIds': FieldValue.arrayRemove([id])});
         batch.update(firestore.collection('helpers').doc(id), {'status': 'available', 'currentTaskId': null});
-        // Releasing a CF is safe to queue offline — unlike adding one
-        // (below), it can't create a double-booking.
-        await commitAllowingOffline(batch);
+        // Releasing a CF is safe to fire-and-forget — unlike adding one
+        // (above), it can't create a double-booking.
+        commitAllowingOffline(batch);
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update CFs: $e')));
@@ -522,16 +463,11 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
       batch.update(firestore.collection('helpers').doc(id), {'status': 'available', 'currentTaskId': null});
     }
     try {
-      // Same offline-tolerant commit as Start Task: the completion (with
-      // the duration already computed above from the original startedAt)
-      // is saved locally right away even with no signal, instead of
-      // leaving the JO stuck on this screen waiting for a server ack.
-      final outcome = await commitAllowingOffline(batch);
-      if (mounted && outcome == CommitOutcome.queuedOffline) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("No signal — task completion saved and will sync automatically once you're back online.")),
-        );
-      }
+      // Same fire-and-forget write as Start Task — the completion (with
+      // the duration already computed above from the original
+      // startedAt) is saved locally right away regardless of signal, and
+      // this screen moves on immediately rather than waiting on it.
+      commitAllowingOffline(batch);
     } catch (e) {
       if (mounted) {
         setState(() => _isCompleting = false);
@@ -549,7 +485,12 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
         if (!snapshot.data!.exists) return const Center(child: Text('Task not found.'));
         final order = WorkOrder.fromMap(snapshot.data!.id, snapshot.data!.data()!);
         return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          future: FirebaseFirestore.instance.collection('machines').doc(order.machineId).get(),
+          // An "Others" task may have no machine at all — Firestore's
+          // .doc() rejects an empty ID outright, so skip the lookup
+          // entirely rather than let it throw.
+          future: order.machineId.isEmpty
+              ? null
+              : FirebaseFirestore.instance.collection('machines').doc(order.machineId).get(),
           builder: (context, machineSnapshot) {
             final machine = machineSnapshot.data?.exists == true ? Machine.fromMap(machineSnapshot.data!.id, machineSnapshot.data!.data()!) : null;
             return Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -559,7 +500,7 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
                 Row(children: [
                   CircleAvatar(radius: 16, child: Text(_typeCode(order), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
                   const SizedBox(width: 10),
-                  Expanded(child: Text('Machine: ${machine?.displayName ?? order.machineId}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
+                  Expanded(child: Text('Machine: ${machine?.displayName ?? (order.machineId.isEmpty ? 'None' : order.machineId)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
                 ]),
                 if (machine?.equipmentId.isNotEmpty == true) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Equipment ID: ${machine!.equipmentId}')),
                 if (order.type == 'preventive' && order.preventiveTypes.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Preventive type: ${order.preventiveTypes.join(', ')}')),

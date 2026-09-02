@@ -6,7 +6,7 @@ import '../models/work_order.dart';
 import '../utils/app_colors.dart';
 import '../utils/task_type.dart';
 import '../utils/task_completion.dart';
-import '../widgets_root_back_scope.dart';
+import '../widgets_confirm_back_scope.dart';
 
 // Lists the CF-only tasks this Junior Officer has assigned that are still
 // running, so they can close them out. Needed because a CF has no login
@@ -17,7 +17,9 @@ class MyCfAssignmentsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RootBackScope(
+    return ConfirmBackScope(
+      title: 'Go back to the dashboard?',
+      message: 'Leave your CF assignments list?',
       child: Scaffold(
         appBar: AppBar(title: const Text('My CF Assignments')),
         body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -74,7 +76,9 @@ class _AssignmentCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              future: FirebaseFirestore.instance.collection('machines').doc(order.machineId).get(),
+              future: order.machineId.isEmpty
+                  ? null
+                  : FirebaseFirestore.instance.collection('machines').doc(order.machineId).get(),
               builder: (context, snap) {
                 final machine = snap.data != null && snap.data!.exists
                     ? Machine.fromMap(snap.data!.id, snap.data!.data()!)
@@ -83,7 +87,7 @@ class _AssignmentCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        machine?.displayName ?? order.machineId,
+                        machine?.displayName ?? (order.machineId.isEmpty ? 'No machine' : order.machineId),
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                     ),
@@ -122,13 +126,12 @@ class _AssignmentCard extends StatelessWidget {
                     onPressed: () async {
                       final time = await pickCompletionTime(context, startedAt: order.startedAt);
                       if (time == null) return;
-                      final outcome = await completeWorkOrder(
+                      completeWorkOrder(
                         orderId: order.id,
                         technicianIds: order.assignedTechnicianIds,
                         helperIds: order.helperIds,
                         completedAt: time,
                       );
-                      if (context.mounted) showOfflineSyncNoticeIfNeeded(context, outcome);
                     },
                     icon: const Icon(Icons.check_circle_outline),
                     label: const Text('Complete Task'),

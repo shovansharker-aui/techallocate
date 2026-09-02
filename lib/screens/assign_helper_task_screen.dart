@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/helper.dart';
 import '../models/machine.dart';
-import '../widgets_root_back_scope.dart';
+import '../widgets_confirm_back_scope.dart';
 import '../utils/app_colors.dart';
 import '../utils/task_type.dart';
 import '../utils/offline_commit.dart';
@@ -206,16 +206,10 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
     }
 
     try {
-      final outcome = await commitAllowingOffline(batch);
+      commitAllowingOffline(batch);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            outcome == CommitOutcome.queuedOffline
-                ? "No signal — CF assignment saved and will sync automatically once you're back online."
-                : 'CF assignment started. You remain available.',
-          ),
-        ),
+        const SnackBar(content: Text('CF assignment started. You remain available.')),
       );
       Navigator.pop(context);
     } catch (e) {
@@ -229,7 +223,7 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return RootBackScope(
+    return ConfirmBackScope(
       child: Scaffold(
         appBar: AppBar(title: const Text('Assign a CF')),
         body: ListView(
