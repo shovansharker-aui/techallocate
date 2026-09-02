@@ -310,7 +310,7 @@ class _StartTaskPageState extends State<_StartTaskPage> {
       final c = score(a).compareTo(score(b));
       return c == 0 ? a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()) : c;
     });
-    return matches.take(5).toList();
+    return matches;
   }
 
   void _selectMachine(Machine machine) {
@@ -389,7 +389,15 @@ class _StartTaskPageState extends State<_StartTaskPage> {
               onTap: () => setState(() => _showSuggestions = _machineSearchController.text.trim().isNotEmpty),
               decoration: InputDecoration(labelText: _type == 'others' ? 'Search machine (optional)' : 'Search machine', hintText: 'Machine name or equipment ID', prefixIcon: const Icon(Icons.search), suffixIcon: _selectedMachine == null ? null : IconButton(onPressed: () => setState(() { _selectedMachine = null; _selectedMachineId = null; _machineSearchController.clear(); }), icon: const Icon(Icons.clear)), border: const OutlineInputBorder()),
             ),
-            if (_showSuggestions && suggestions.isNotEmpty) Card(child: Column(children: suggestions.map((m) => ListTile(title: Text(m.displayName), subtitle: Text(m.equipmentId), onTap: () => _selectMachine(m))).toList())),
+            if (_showSuggestions && suggestions.isNotEmpty) Card(child: ConstrainedBox(
+              // Shows about 5 rows before scrolling, rather than
+              // silently dropping every match past the 5th.
+              constraints: const BoxConstraints(maxHeight: 320),
+              child: ListView(
+                shrinkWrap: true,
+                children: suggestions.map((m) => ListTile(title: Text(m.displayName), subtitle: Text(m.equipmentId), onTap: () => _selectMachine(m))).toList(),
+              ),
+            )),
             if (_selectedMachine != null) Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(top: 8), child: Text('Selected: ${_selectedMachine!.displayName}', style: const TextStyle(fontWeight: FontWeight.w600)))),
           ]);
         }),

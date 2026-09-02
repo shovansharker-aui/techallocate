@@ -67,7 +67,7 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
           ? a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase())
           : c;
     });
-    return matches.take(5).toList();
+    return matches;
   }
 
   void _selectMachine(Machine machine) {
@@ -296,16 +296,22 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
                     ),
                     if (_showSuggestions && suggestions.isNotEmpty)
                       Card(
-                        child: Column(
-                          children: suggestions
-                              .map(
-                                (machine) => ListTile(
-                                  title: Text(machine.displayName),
-                                  subtitle: Text(machine.equipmentId),
-                                  onTap: () => _selectMachine(machine),
-                                ),
-                              )
-                              .toList(),
+                        child: ConstrainedBox(
+                          // Shows about 5 rows before scrolling, rather
+                          // than silently dropping every match past the 5th.
+                          constraints: const BoxConstraints(maxHeight: 320),
+                          child: ListView(
+                            shrinkWrap: true,
+                            children: suggestions
+                                .map(
+                                  (machine) => ListTile(
+                                    title: Text(machine.displayName),
+                                    subtitle: Text(machine.equipmentId),
+                                    onTap: () => _selectMachine(machine),
+                                  ),
+                                )
+                                .toList(),
+                          ),
                         ),
                       ),
                     if (_selectedMachine != null)
