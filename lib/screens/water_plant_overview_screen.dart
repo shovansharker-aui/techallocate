@@ -17,11 +17,13 @@ import 'water_plant_manager_dashboard.dart';
 class WaterPlantOverviewScreen extends StatelessWidget {
   final VoidCallback? onLogout;
   final bool showDutyAllocationButton;
+  final bool showSwitchingToggle;
 
   const WaterPlantOverviewScreen({
     super.key,
     this.onLogout,
     this.showDutyAllocationButton = false,
+    this.showSwitchingToggle = true,
   });
 
   @override
@@ -42,7 +44,7 @@ class WaterPlantOverviewScreen extends StatelessWidget {
             IconButton(icon: const Icon(Icons.logout), tooltip: 'Log out', onPressed: onLogout),
         ],
       ),
-      body: const WaterPlantOverviewBody(),
+      body: WaterPlantOverviewBody(showSwitchingToggle: showSwitchingToggle),
     );
   }
 }
@@ -51,7 +53,11 @@ class WaterPlantOverviewScreen extends StatelessWidget {
 /// AppBar of its own — embed this directly wherever a persistent shell
 /// (like the web admin sidebar layout) already provides those.
 class WaterPlantOverviewBody extends StatelessWidget {
-  const WaterPlantOverviewBody({super.key});
+  // Only admin can change this — the "waterplant" account sees the same
+  // tiles but can't flip the switch itself.
+  final bool showSwitchingToggle;
+
+  const WaterPlantOverviewBody({super.key, this.showSwitchingToggle = true});
 
   @override
   Widget build(BuildContext context) {
@@ -62,26 +68,27 @@ class WaterPlantOverviewBody extends StatelessWidget {
 
         return Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Card(
-                child: SwitchListTile(
-                  title: const Text('Switching', style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(
-                    switchingEnabled
-                        ? 'On — personnel automatically swap plants after 7:30 AM.'
-                        : 'Off — personnel stay on their morning-assigned plant all day.',
+            if (showSwitchingToggle)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: Card(
+                  child: SwitchListTile(
+                    title: const Text('Switching', style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(
+                      switchingEnabled
+                          ? 'On — personnel automatically swap plants after 7:30 AM.'
+                          : 'Off — personnel stay on their morning-assigned plant all day.',
+                    ),
+                    value: switchingEnabled,
+                    onChanged: (value) {
+                      // Single-document write, fire-and-forget: the local
+                      // cache (and this Switch) updates instantly via the
+                      // StreamBuilder above regardless of connectivity.
+                      waterPlantSettingsRef.set({'switchingEnabled': value}, SetOptions(merge: true));
+                    },
                   ),
-                  value: switchingEnabled,
-                  onChanged: (value) {
-                    // Single-document write, fire-and-forget: the local
-                    // cache (and this Switch) updates instantly via the
-                    // StreamBuilder above regardless of connectivity.
-                    waterPlantSettingsRef.set({'switchingEnabled': value}, SetOptions(merge: true));
-                  },
                 ),
               ),
-            ),
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                 stream: FirebaseFirestore.instance.collection('water_plant_personnel').orderBy('name').snapshots(),

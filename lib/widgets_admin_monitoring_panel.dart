@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'widgets_live_activity_grid.dart';
 import 'widgets_completed_tasks_section.dart';
+import 'widgets_daily_summary.dart';
 import 'services/android_widget_service.dart';
 import 'models/app_user.dart';
 import 'models/helper.dart';
@@ -53,6 +54,8 @@ class AdminMonitoringPanel extends StatelessWidget {
                   );
                 });
                 return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const DailySummaryCard(),
+                  const SizedBox(height: 12),
                   Builder(builder: (context) {
                     final isAndroid = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
                     final sideBySide = isAndroid || MediaQuery.sizeOf(context).width >= 650;

@@ -447,6 +447,41 @@ class _CompletedTaskDetailSheet extends StatefulWidget {
 
 class _CompletedTaskDetailSheetState extends State<_CompletedTaskDetailSheet> {
   bool _isDeleting = false;
+  bool _isSavingRemarks = false;
+  late String _remarks = widget.order.completionRemarks;
+
+  Future<void> _editRemarks() async {
+    final controller = TextEditingController(text: _remarks);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Edit completion remarks'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 5,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Save')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null || !mounted) return;
+
+    setState(() => _isSavingRemarks = true);
+    try {
+      await FirebaseFirestore.instance.collection('work_orders').doc(widget.order.id).update({'completionRemarks': result});
+      if (mounted) setState(() { _remarks = result; _isSavingRemarks = false; });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSavingRemarks = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+      }
+    }
+  }
 
   Future<void> _delete() async {
     final confirmed = await showDialog<bool>(
@@ -518,12 +553,21 @@ class _CompletedTaskDetailSheetState extends State<_CompletedTaskDetailSheet> {
                 const SizedBox(height: 2),
                 Text(order.description.trim()),
               ],
-              if (order.completionRemarks.trim().isNotEmpty) ...[
-                const SizedBox(height: 8),
+              const SizedBox(height: 10),
+              Row(children: [
                 const Text('Completion remarks', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.muted)),
-                const SizedBox(height: 2),
-                Text(order.completionRemarks.trim()),
-              ],
+                const SizedBox(width: 6),
+                if (_isSavingRemarks)
+                  const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                else
+                  InkWell(
+                    onTap: _editRemarks,
+                    borderRadius: BorderRadius.circular(6),
+                    child: const Padding(padding: EdgeInsets.all(2), child: Icon(Icons.edit_outlined, size: 16, color: AppColors.muted)),
+                  ),
+              ]),
+              const SizedBox(height: 2),
+              Text(_remarks.trim().isEmpty ? 'No remarks.' : _remarks.trim(), style: _remarks.trim().isEmpty ? const TextStyle(color: AppColors.muted, fontStyle: FontStyle.italic) : null),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,

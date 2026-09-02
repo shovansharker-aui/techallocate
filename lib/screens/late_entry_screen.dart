@@ -48,7 +48,7 @@ class _LateEntryScreenState extends State<LateEntryScreen> {
   List<Machine> _filterMachines(List<Machine> machines, String query) {
     final search = query.trim().toLowerCase();
     if (search.isEmpty) return const [];
-    final matches = machines.where((m) => m.displayName.toLowerCase().contains(search) || m.equipmentName.toLowerCase().contains(search) || m.equipmentId.toLowerCase().contains(search)).toList();
+    final matches = machines.where((m) => m.displayName.toLowerCase().contains(search) || m.equipmentName.toLowerCase().contains(search) || m.equipmentId.toLowerCase().contains(search) || m.group.toLowerCase().contains(search)).toList();
     matches.sort((a, b) {
       int score(Machine m) {
         final n = m.displayName.toLowerCase();

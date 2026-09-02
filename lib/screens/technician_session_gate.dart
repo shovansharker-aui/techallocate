@@ -18,6 +18,20 @@ class UserSessionGate extends StatelessWidget {
   const UserSessionGate({super.key, required this.docId});
 
   Future<void> _logout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text('You\'ll need to sign in again with your Employee ID and PIN.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Log out')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
     await TechnicianSessionService().clear();
     await FirebaseAuth.instance.signOut();
 
@@ -88,6 +102,7 @@ class UserSessionGate extends StatelessWidget {
               child: WaterPlantOverviewScreen(
                 onLogout: () => _logout(context),
                 showDutyAllocationButton: true,
+                showSwitchingToggle: false,
               ),
             );
           default:

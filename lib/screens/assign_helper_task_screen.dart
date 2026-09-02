@@ -51,7 +51,8 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
         .where((m) =>
             m.displayName.toLowerCase().contains(search) ||
             m.equipmentName.toLowerCase().contains(search) ||
-            m.equipmentId.toLowerCase().contains(search))
+            m.equipmentId.toLowerCase().contains(search) ||
+            m.group.toLowerCase().contains(search))
         .toList();
     matches.sort((a, b) {
       int score(Machine m) {
