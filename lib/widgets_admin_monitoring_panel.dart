@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'widgets_live_activity_grid.dart';
 import 'widgets_completed_tasks_section.dart';
 import 'widgets_daily_summary.dart';
+import 'widgets_task_type_chart.dart';
 import 'services/android_widget_service.dart';
 import 'models/app_user.dart';
 import 'models/helper.dart';
@@ -40,8 +41,6 @@ class AdminMonitoringPanel extends StatelessWidget {
                 final bmCount = countType('breakdown');
                 final clCount = countType('calibration');
                 final adCount = countType('adjustment');
-                final coCount = countType('changeover');
-                final otCount = countType('others');
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   AndroidWidgetService.update(
                     jo: availableTech,
@@ -53,44 +52,36 @@ class AdminMonitoringPanel extends StatelessWidget {
                   );
                 });
                 return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const DailySummaryCard(),
-                  const SizedBox(height: 12),
-                  Builder(builder: (context) {
-                    // Always side-by-side, matching the native Android
-                    // app exactly — previously this fell back to
-                    // stacking on any web viewport under 650px, which
-                    // meant a normal phone-width PWA/mobile-web session
-                    // (usually ~360-430px) always got the stacked
-                    // layout even though the native app never does.
-                    final jo = _summaryCard(
-                      'Person Available',
-                      Icons.groups_outlined,
-                      [
-                        _SummaryRow('JO', '$availableTech'),
-                        _SummaryRow('CF', '$availableHelpers'),
-                      ],
-                      onTap: () => _showAvailablePeople(context, availableTechList, availableHelperList),
-                    );
-                    final task = _summaryCard('Task Running', Icons.work_history_outlined, [
-                      _SummaryRow('PM', '$pmCount', onTap: pmCount == 0 ? null : () => _showTasksOfType(context, 'preventive', 'Preventive tasks')),
-                      _SummaryRow('BM', '$bmCount', onTap: bmCount == 0 ? null : () => _showTasksOfType(context, 'breakdown', 'Breakdown tasks')),
-                      _SummaryRow('CL', '$clCount', onTap: clCount == 0 ? null : () => _showTasksOfType(context, 'calibration', 'Calibration tasks')),
-                      _SummaryRow('AD', '$adCount', onTap: adCount == 0 ? null : () => _showTasksOfType(context, 'adjustment', 'Adjustment tasks')),
-                      _SummaryRow('CO', '$coCount', onTap: coCount == 0 ? null : () => _showTasksOfType(context, 'changeover', 'Changeover tasks')),
-                      _SummaryRow('OT', '$otCount', onTap: otCount == 0 ? null : () => _showTasksOfType(context, 'others', 'Other tasks')),
-                    ], twoColumn: true);
-                    // IntrinsicHeight makes both cards match the taller one's
-                    // height without needing a hardcoded aspect ratio — a
-                    // fixed ratio broke as soon as one card had more rows
-                    // than the other and caused a bottom overflow.
-                    return IntrinsicHeight(
-                      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                        Expanded(child: jo),
+                  // A 2x2 area with 3 cells: Today's hours (top-left),
+                  // JO available count (bottom-left), and the
+                  // completed-today chart spanning the full right column
+                  // — replaces the old full-width Daily Summary card +
+                  // separate Person Available / Task Running row, which
+                  // together took up roughly this same footprint.
+                  SizedBox(
+                    height: 300,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: Column(children: [
+                            const Expanded(child: DailySummaryCard()),
+                            const SizedBox(height: 12),
+                            Expanded(
+                              child: _summaryCard(
+                                'Person Available',
+                                Icons.groups_outlined,
+                                [_SummaryRow('JO', '$availableTech')],
+                                onTap: () => _showAvailablePeople(context, availableTechList, availableHelperList),
+                              ),
+                            ),
+                          ]),
+                        ),
                         const SizedBox(width: 12),
-                        Expanded(child: task),
-                      ]),
-                    );
-                  }),
+                        const Expanded(child: TaskTypeBreakdownCard()),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 18),
                   const Text('Running Task', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
@@ -163,41 +154,6 @@ class AdminMonitoringPanel extends StatelessWidget {
     );
     if (onTap == null) return card;
     return InkWell(borderRadius: BorderRadius.circular(20), onTap: onTap, child: card);
-  }
-
-  Future<void> _showTasksOfType(BuildContext context, String type, String title) {
-    return showDialog<void>(
-      context: context,
-      barrierColor: Colors.black38,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480, maxHeight: 560),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  const Icon(Icons.work_history_outlined, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold))),
-                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
-                ]),
-                const Divider(height: 1),
-                const SizedBox(height: 10),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: LiveActivityGrid(filterType: type),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   Future<void> _showAvailablePeople(BuildContext context, List<AppUser> jos, List<Helper> cfs) {

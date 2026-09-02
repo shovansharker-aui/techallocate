@@ -5,6 +5,7 @@ import 'add_personnel_screen.dart';
 import 'machines_screen.dart';
 import '../utils/app_colors.dart';
 import '../services/theme_service.dart';
+import '../widgets_task_type_chart.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -80,6 +81,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             )),
           ),
+          const SizedBox(height: 24),
+          const Text('Dashboard', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          const ChartModeSetting(),
           const SizedBox(height: 24),
           const Text('Android Communication', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),

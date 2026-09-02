@@ -5,7 +5,9 @@ import 'utils/app_colors.dart';
 
 /// Today's total engaged hours across all JOs and all CFs, from every
 /// task completed today — a quick "how much got done today" summary at
-/// the top of the admin dashboard.
+/// the top of the admin dashboard. Laid out as two stacked lines (JO,
+/// then CF) rather than side-by-side, since this now shares a 2x2 grid
+/// cell with "Person Available" instead of spanning the full width.
 class DailySummaryCard extends StatelessWidget {
   const DailySummaryCard({super.key});
 
@@ -26,17 +28,11 @@ class DailySummaryCard extends StatelessWidget {
         // it, and once toward CF hours if a CF was on it — a
         // helper-assisted task (both present) counts toward both, same
         // as it took both of their time simultaneously.
-        var joSeconds = 0, cfSeconds = 0, joTaskCount = 0, cfTaskCount = 0;
+        var joSeconds = 0, cfSeconds = 0;
         for (final o in orders) {
           final seconds = o.durationSeconds ?? 0;
-          if (o.assignedTechnicianIds.isNotEmpty) {
-            joSeconds += seconds;
-            joTaskCount++;
-          }
-          if (o.helperIds.isNotEmpty) {
-            cfSeconds += seconds;
-            cfTaskCount++;
-          }
+          if (o.assignedTechnicianIds.isNotEmpty) joSeconds += seconds;
+          if (o.helperIds.isNotEmpty) cfSeconds += seconds;
         }
 
         String hoursLabel(int seconds) {
@@ -53,17 +49,14 @@ class DailySummaryCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  const Icon(Icons.summarize_outlined, size: 20),
-                  const SizedBox(width: 8),
-                  const Expanded(child: Text('Daily Summary', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
-                  Text('${orders.length} task${orders.length == 1 ? '' : 's'} completed', style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                  const Icon(Icons.summarize_outlined, size: 18),
+                  const SizedBox(width: 6),
+                  const Expanded(child: Text('Today', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                 ]),
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(child: _statBlock(context, Icons.engineering_outlined, hoursLabel(joSeconds), 'JO work hours · $joTaskCount task${joTaskCount == 1 ? '' : 's'}')),
-                  SizedBox(height: 44, child: VerticalDivider(width: 24, color: Theme.of(context).dividerColor)),
-                  Expanded(child: _statBlock(context, Icons.handyman_outlined, hoursLabel(cfSeconds), 'CF work hours · $cfTaskCount task${cfTaskCount == 1 ? '' : 's'}')),
-                ]),
+                const SizedBox(height: 10),
+                _statLine(context, Icons.engineering_outlined, hoursLabel(joSeconds), 'JO work hours'),
+                const SizedBox(height: 8),
+                _statLine(context, Icons.handyman_outlined, hoursLabel(cfSeconds), 'CF work hours'),
               ],
             ),
           ),
@@ -72,16 +65,20 @@ class DailySummaryCard extends StatelessWidget {
     );
   }
 
-  Widget _statBlock(BuildContext context, IconData icon, String value, String label) {
+  Widget _statLine(BuildContext context, IconData icon, String value, String label) {
     return Row(children: [
-      Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
-      const SizedBox(width: 10),
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.muted)),
-        ],
+      Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(width: 6),
+            Expanded(child: Text(label, style: const TextStyle(fontSize: 11, color: AppColors.muted), overflow: TextOverflow.ellipsis)),
+          ],
+        ),
       ),
     ]);
   }
