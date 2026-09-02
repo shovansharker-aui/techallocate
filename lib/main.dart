@@ -9,6 +9,7 @@ import 'services/technician_session_service.dart';
 import 'firebase_options.dart';
 import 'utils/app_colors.dart';
 import 'services/theme_service.dart';
+import 'services/chart_mode_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +41,7 @@ Future<void> main() async {
   }
 
   await themeService.load();
+  await chartModeService.load();
 
   runApp(const TechAllocateApp());
 }

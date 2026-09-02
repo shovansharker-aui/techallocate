@@ -2,27 +2,9 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'models/work_order.dart';
+import 'services/chart_mode_service.dart';
 import 'utils/app_colors.dart';
 import 'utils/task_type.dart';
-
-enum ChartMode { sunburst, treemap }
-
-/// Where the admin's chosen chart mode (sunburst vs treemap) is stored.
-/// Deliberately a document inside the already-writable 'users'
-/// collection, under a reserved id, rather than a new top-level
-/// collection — a brand new collection isn't covered by this project's
-/// Firestore rules and writes to it are silently rejected (see
-/// water_plant.dart's waterPlantSettingsRef for the same fix applied to
-/// the Switching toggle). This particular doc is invisible to every
-/// existing users-collection query in the app, since they all filter on
-/// role == 'technician' / 'admin' / 'water_plant_manager', which this
-/// document's role never matches.
-const appSettingsDocId = '_app_settings';
-final appSettingsRef = FirebaseFirestore.instance.collection('users').doc(appSettingsDocId);
-
-ChartMode chartModeFrom(Map<String, dynamic>? data) {
-  return (data?['chartMode'] == 'treemap') ? ChartMode.treemap : ChartMode.sunburst;
-}
 
 class TaskTypeDatum {
   final String code;
@@ -55,10 +37,10 @@ class TaskTypeBreakdownCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: appSettingsRef.snapshots(),
-      builder: (context, settingsSnapshot) {
-        final mode = chartModeFrom(settingsSnapshot.data?.data());
+    return ListenableBuilder(
+      listenable: chartModeService,
+      builder: (context, _) {
+        final mode = chartModeService.mode;
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
               .collection('work_orders')
@@ -91,7 +73,7 @@ class TaskTypeBreakdownCard extends StatelessWidget {
                     Row(children: [
                       const Icon(Icons.donut_large_outlined, size: 20),
                       const SizedBox(width: 8),
-                      const Expanded(child: Text('Completed Today by Type', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+                      const Expanded(child: Text("Today's Summary", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
                     ]),
                     const SizedBox(height: 8),
                     Expanded(
@@ -283,10 +265,10 @@ class ChartModeSetting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: appSettingsRef.snapshots(),
-      builder: (context, snapshot) {
-        final mode = chartModeFrom(snapshot.data?.data());
+    return ListenableBuilder(
+      listenable: chartModeService,
+      builder: (context, _) {
+        final mode = chartModeService.mode;
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -295,7 +277,7 @@ class ChartModeSetting extends StatelessWidget {
               children: [
                 const Text('Completed-tasks chart style', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                const Text('Shown on the admin dashboard\'s "Completed Today by Type" card.', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                const Text('Shown on the admin dashboard\'s "Today\'s Summary" card.', style: TextStyle(fontSize: 12, color: AppColors.muted)),
                 const SizedBox(height: 12),
                 SegmentedButton<ChartMode>(
                   segments: const [
@@ -303,12 +285,7 @@ class ChartModeSetting extends StatelessWidget {
                     ButtonSegment(value: ChartMode.treemap, label: Text('Treemap'), icon: Icon(Icons.grid_view_outlined)),
                   ],
                   selected: {mode},
-                  onSelectionChanged: (selection) {
-                    // Single-document write, fire-and-forget — updates
-                    // instantly via the StreamBuilder above regardless
-                    // of connectivity.
-                    appSettingsRef.set({'chartMode': selection.first.name}, SetOptions(merge: true));
-                  },
+                  onSelectionChanged: (selection) => chartModeService.setMode(selection.first),
                 ),
               ],
             ),

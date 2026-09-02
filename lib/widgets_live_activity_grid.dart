@@ -84,9 +84,9 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                       return aName.toLowerCase().compareTo(bName.toLowerCase());
                     });
 
-                    if (orders.isEmpty) return const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('No one is currently engaged in a task.')));
+                    if (orders.isEmpty) return const SizedBox.shrink();
 
-                    return LayoutBuilder(builder: (context, constraints) {
+                    final grid = LayoutBuilder(builder: (context, constraints) {
                       final columns = constraints.maxWidth >= 1000 ? 3 : constraints.maxWidth >= 650 ? 2 : 1;
                       final width = (constraints.maxWidth - (columns - 1) * 8) / columns;
                       return Wrap(
@@ -169,6 +169,16 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                         }).toList(),
                       );
                     });
+
+                    if (widget.filterType != null) return grid;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Running Task', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        grid,
+                      ],
+                    );
                   },
                 );
               },

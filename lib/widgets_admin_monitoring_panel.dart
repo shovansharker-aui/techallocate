@@ -67,14 +67,7 @@ class AdminMonitoringPanel extends StatelessWidget {
                           child: Column(children: [
                             const Expanded(child: DailySummaryCard()),
                             const SizedBox(height: 12),
-                            Expanded(
-                              child: _summaryCard(
-                                'Person Available',
-                                Icons.groups_outlined,
-                                [_SummaryRow('JO', '$availableTech')],
-                                onTap: () => _showAvailablePeople(context, availableTechList, availableHelperList),
-                              ),
-                            ),
+                            Expanded(child: _availableNowCard(availableTechList)),
                           ]),
                         ),
                         const SizedBox(width: 12),
@@ -83,8 +76,6 @@ class AdminMonitoringPanel extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  const Text('Running Task', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
                   const LiveActivityGrid(),
                   const SizedBox(height: 18),
                   const CompletedTasksSection(),
@@ -156,71 +147,49 @@ class AdminMonitoringPanel extends StatelessWidget {
     return InkWell(borderRadius: BorderRadius.circular(20), onTap: onTap, child: card);
   }
 
-  Future<void> _showAvailablePeople(BuildContext context, List<AppUser> jos, List<Helper> cfs) {
-    return showDialog<void>(
-      context: context,
-      barrierColor: Colors.black38,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 380, maxHeight: 500),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  const Icon(Icons.groups_outlined, size: 20),
-                  const SizedBox(width: 8),
-                  const Expanded(child: Text('Person Available', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold))),
-                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
-                ]),
-                const Divider(height: 1),
-                const SizedBox(height: 8),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Junior Officers (${jos.length})', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.muted)),
-                        const SizedBox(height: 4),
-                        if (jos.isEmpty)
-                          const Padding(padding: EdgeInsets.only(bottom: 12), child: Text('None available'))
-                        else
-                          ...jos.map((jo) => ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            leading: CircleAvatar(radius: 16, child: Text(jo.name.isEmpty ? '?' : jo.name[0].toUpperCase())),
-                            title: Text(jo.name),
-                            subtitle: Text(switch (jo.dutyStatus) {
-                              'day_ot' => 'Day + OT',
-                              'day_night' => 'Day + Night',
-                              _ => 'Day',
-                            }),
-                          )),
-                        const SizedBox(height: 12),
-                        Text('CF (${cfs.length})', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.muted)),
-                        const SizedBox(height: 4),
-                        if (cfs.isEmpty)
-                          const Padding(padding: EdgeInsets.only(bottom: 4), child: Text('None available'))
-                        else
-                          ...cfs.map((h) => ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            leading: CircleAvatar(radius: 16, child: Text(h.name.isEmpty ? '?' : h.name[0].toUpperCase())),
-                            title: Text(h.name),
-                          )),
-                      ],
+  Widget _availableNowCard(List<AppUser> jos) {
+    return Card(
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.groups_outlined, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Available Now', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+            ]),
+            const SizedBox(height: 10),
+            Expanded(
+              child: jos.isEmpty
+                  ? const Text('No one available right now.', style: TextStyle(fontSize: 12, color: AppColors.muted))
+                  : SingleChildScrollView(
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: _namesWithDots(jos),
+                      ),
                     ),
-                  ),
-                ),
-              ],
             ),
-          ),
+          ],
         ),
       ),
     );
+  }
+
+  List<Widget> _namesWithDots(List<AppUser> jos) {
+    final widgets = <Widget>[];
+    for (var i = 0; i < jos.length; i++) {
+      widgets.add(Text(jos[i].name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)));
+      if (i != jos.length - 1) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Container(width: 4, height: 4, decoration: const BoxDecoration(color: AppColors.muted, shape: BoxShape.circle)),
+        ));
+      }
+    }
+    return widgets;
   }
 }
 

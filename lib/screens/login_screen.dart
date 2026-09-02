@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../main.dart';
 import '../services/technician_session_service.dart';
@@ -75,10 +74,6 @@ class _LoginScreenState extends State<LoginScreen> {
         _showError('This employee account has no valid role.');
         return;
       }
-      if (role == 'water_plant_manager' && !kIsWeb) {
-        _showError('This login can only be used on the web version, not the Android app.');
-        return;
-      }
 
       await TechnicianSessionService().saveUserId(doc.id);
 
@@ -123,10 +118,9 @@ class _LoginScreenState extends State<LoginScreen> {
               constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
                 children: [
-                  const Icon(
-                    Icons.engineering,
-                    size: 76,
-                    color: AppColors.primary,
+                  Image.asset(
+                    'assets/logo.png',
+                    height: 76,
                   ),
                   const SizedBox(height: 16),
                   const Text(

@@ -29,7 +29,7 @@ class _AdminWebDashboardScreenState extends State<AdminWebDashboardScreen> {
 
   String get _title {
     switch (_section) {
-      case _AdminSection.maintenance: return 'Admin Dashboard';
+      case _AdminSection.maintenance: return 'RPGF Maintenance Tracker';
       case _AdminSection.waterPlant: return 'Water Plant';
       case _AdminSection.backup: return 'Backup / Export';
       case _AdminSection.settings: return 'Settings';
@@ -77,7 +77,7 @@ class _AdminWebDashboardScreenState extends State<AdminWebDashboardScreen> {
   }
 
   Widget _sidebar(BuildContext context) => Material(color: Theme.of(context).colorScheme.surfaceContainerLowest, child: SafeArea(child: Column(children: [
-    const Padding(padding: EdgeInsets.fromLTRB(20, 28, 20, 24), child: Row(children: [Icon(Icons.engineering, size: 34), SizedBox(width: 12), Text('TechAllocate', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))])),
+    const Padding(padding: EdgeInsets.fromLTRB(20, 28, 20, 24), child: Row(children: [Image(image: AssetImage('assets/logo.png'), height: 34), SizedBox(width: 12), Text('TechAllocate', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))])),
     ListTile(selected: _section == _AdminSection.maintenance, leading: const Icon(Icons.dashboard_outlined), title: const Text('Maintenance'), onTap: () => _select(_AdminSection.maintenance, context)),
     ListTile(selected: _section == _AdminSection.waterPlant, leading: const Icon(Icons.water_drop_outlined), title: const Text('Water Plant'), onTap: () => _select(_AdminSection.waterPlant, context)),
     ListTile(selected: _section == _AdminSection.backup, leading: const Icon(Icons.file_download_outlined), title: const Text('Backup / Export'), onTap: () => _select(_AdminSection.backup, context)),
