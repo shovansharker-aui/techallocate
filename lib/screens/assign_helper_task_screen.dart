@@ -5,6 +5,7 @@ import '../models/machine.dart';
 import '../widgets_root_back_scope.dart';
 import '../utils/app_colors.dart';
 import '../utils/task_type.dart';
+import '../utils/offline_commit.dart';
 
 /// Creates a running work order for helper(s) without assigning the logged-in
 /// technician to the work order. The technician therefore remains available.
@@ -205,10 +206,16 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
     }
 
     try {
-      await batch.commit();
+      final outcome = await commitAllowingOffline(batch);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('CF assignment started. You remain available.')),
+        SnackBar(
+          content: Text(
+            outcome == CommitOutcome.queuedOffline
+                ? "No signal — CF assignment saved and will sync automatically once you're back online."
+                : 'CF assignment started. You remain available.',
+          ),
+        ),
       );
       Navigator.pop(context);
     } catch (e) {

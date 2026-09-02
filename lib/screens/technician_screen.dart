@@ -6,6 +6,7 @@ import '../models/machine.dart';
 import '../models/work_order.dart';
 import '../widgets_root_back_scope.dart';
 import '../utils/task_type.dart';
+import '../utils/offline_commit.dart';
 import 'assign_helper_task_screen.dart';
 import 'my_cf_assignments_screen.dart';
 import '../utils/app_colors.dart';
@@ -262,8 +263,18 @@ class _StartTaskPageState extends State<_StartTaskPage> {
       batch.update(firestore.collection('helpers').doc(id), {'status': 'assigned', 'currentTaskId': ref.id});
     }
     try {
-      await batch.commit();
-      if (mounted) Navigator.pop(context);
+      // Waits briefly for a server ack; if there's no signal, treats the
+      // write as safely queued instead of hanging — the data (with the
+      // original startedNow timestamp above) is already saved locally and
+      // will sync on its own once connectivity returns.
+      final outcome = await commitAllowingOffline(batch);
+      if (!mounted) return;
+      if (outcome == CommitOutcome.queuedOffline) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("No signal — task saved and will sync automatically once you're back online.")),
+        );
+      }
+      Navigator.pop(context);
     } catch (e) {
       if (mounted) setState(() { _errorText = 'Failed to start task: $e'; _isSaving = false; });
     }
@@ -441,6 +452,14 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
     final removed = oldIds.difference(newIds);
     final firestore = FirebaseFirestore.instance;
     try {
+      // Adding a CF deliberately still requires a live connection: it
+      // reads the CF's current status and writes only if still
+      // "available", inside a transaction, specifically to stop two
+      // people from double-booking the same CF at the same moment.
+      // Firestore transactions need a round-trip to the server to do
+      // that safely, so this one step can't be queued offline the way
+      // the rest of this screen's writes are — it will simply show an
+      // error below if there's no signal, same as before this change.
       for (final id in added) {
         await firestore.runTransaction((tx) async {
           final ref = firestore.collection('helpers').doc(id);
@@ -456,7 +475,9 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
         final batch = firestore.batch();
         batch.update(firestore.collection('work_orders').doc(widget.taskId), {'helperIds': FieldValue.arrayRemove([id])});
         batch.update(firestore.collection('helpers').doc(id), {'status': 'available', 'currentTaskId': null});
-        await batch.commit();
+        // Releasing a CF is safe to queue offline — unlike adding one
+        // (below), it can't create a double-booking.
+        await commitAllowingOffline(batch);
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update CFs: $e')));
@@ -501,7 +522,16 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
       batch.update(firestore.collection('helpers').doc(id), {'status': 'available', 'currentTaskId': null});
     }
     try {
-      await batch.commit();
+      // Same offline-tolerant commit as Start Task: the completion (with
+      // the duration already computed above from the original startedAt)
+      // is saved locally right away even with no signal, instead of
+      // leaving the JO stuck on this screen waiting for a server ack.
+      final outcome = await commitAllowingOffline(batch);
+      if (mounted && outcome == CommitOutcome.queuedOffline) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("No signal — task completion saved and will sync automatically once you're back online.")),
+        );
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isCompleting = false);

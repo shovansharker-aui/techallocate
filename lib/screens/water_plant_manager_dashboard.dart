@@ -4,6 +4,7 @@ import '../models/water_plant_personnel.dart';
 import '../services/technician_session_service.dart';
 import '../utils/app_colors.dart';
 import '../utils/water_plant.dart';
+import '../utils/offline_commit.dart';
 import 'login_screen.dart';
 
 // Landing screen for the generic Water Plant login. Shows every Water
@@ -46,7 +47,7 @@ class _WaterPlantManagerDashboardState extends State<WaterPlantManagerDashboard>
       });
     }
     try {
-      await batch.commit();
+      final outcome = await commitAllowingOffline(batch);
       if (mounted) {
         setState(() {
           _dutyEdits.clear();
@@ -54,7 +55,13 @@ class _WaterPlantManagerDashboardState extends State<WaterPlantManagerDashboard>
           _isSaving = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Status updated.')),
+          SnackBar(
+            content: Text(
+              outcome == CommitOutcome.queuedOffline
+                  ? "No signal — status saved and will sync automatically once you're back online."
+                  : 'Status updated.',
+            ),
+          ),
         );
       }
     } catch (e) {

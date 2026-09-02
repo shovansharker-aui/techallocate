@@ -2208,6 +2208,7 @@
           <option name="screenDensity" value="394" />
           <option name="screenX" value="1080" />
           <option name="screenY" value="2400" />
+          <option name="selected" value="true" />
         </PersistentDeviceSelectionData>
         <PersistentDeviceSelectionData>
           <option name="api" value="35" />

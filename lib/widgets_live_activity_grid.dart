@@ -143,12 +143,13 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                           onPressed: () async {
                                             final time = await pickCompletionTime(context, startedAt: order.startedAt);
                                             if (time == null) return;
-                                            await completeWorkOrder(
+                                            final outcome = await completeWorkOrder(
                                               orderId: order.id,
                                               technicianIds: order.assignedTechnicianIds,
                                               helperIds: order.helperIds,
                                               completedAt: time,
                                             );
+                                            if (context.mounted) showOfflineSyncNoticeIfNeeded(context, outcome);
                                           },
                                           icon: const Icon(Icons.check_circle_outline, size: 15),
                                           label: const Text('Complete', style: TextStyle(fontSize: 12)),
