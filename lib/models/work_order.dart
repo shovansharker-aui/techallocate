@@ -12,6 +12,7 @@ class WorkOrder {
   final DateTime? completedAt;
   final int? durationSeconds;
   final String completionRemarks;
+  final bool lateEntry;
 
   WorkOrder({
     required this.id,
@@ -27,6 +28,7 @@ class WorkOrder {
     this.completedAt,
     this.durationSeconds,
     this.completionRemarks = '',
+    this.lateEntry = false,
   });
 
   static DateTime? _date(dynamic value) {
@@ -56,6 +58,7 @@ class WorkOrder {
           ? data['durationSeconds'] as int
           : int.tryParse('${data['durationSeconds'] ?? ''}'),
       completionRemarks: (data['completionRemarks'] ?? '').toString(),
+      lateEntry: data['lateEntry'] == true,
     );
   }
 }

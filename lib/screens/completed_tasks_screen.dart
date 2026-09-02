@@ -174,7 +174,10 @@ class _CompletedTasksScreenState extends State<CompletedTasksScreen> {
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ExpansionTile(
                     leading: CircleAvatar(child: Text(taskTypeCode(order.type))),
-                    title: Text(machine?.displayName ?? order.machineId, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    title: Row(children: [
+                      Expanded(child: Text(machine?.displayName ?? (order.machineId.isEmpty ? 'No machine' : order.machineId), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                      if (order.lateEntry) ...[const SizedBox(width: 6), _lateEntryBadge()],
+                    ]),
                     subtitle: Text([
                       if (_typeDetail(order).isNotEmpty) _typeDetail(order),
                       _formatDate(order.completedAt),
@@ -373,7 +376,10 @@ class _PaginatedMonthlyTasksState extends State<_PaginatedMonthlyTasks> {
             margin: const EdgeInsets.only(bottom: 8),
             child: ExpansionTile(
               leading: CircleAvatar(child: Text(widget.typeCode(order))),
-              title: Text(machine?.displayName ?? order.machineId, maxLines: 1, overflow: TextOverflow.ellipsis),
+              title: Row(children: [
+                Expanded(child: Text(machine?.displayName ?? (order.machineId.isEmpty ? 'No machine' : order.machineId), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                if (order.lateEntry) ...[const SizedBox(width: 6), _lateEntryBadge()],
+              ]),
               subtitle: Text([
                 if (widget.typeDetail(order).isNotEmpty) widget.typeDetail(order),
                 widget.formatDate(order.completedAt),
@@ -406,4 +412,21 @@ class _PaginatedMonthlyTasksState extends State<_PaginatedMonthlyTasks> {
       ],
     );
   }
+}
+
+/// Small "Late Entry" badge shown next to a task that was typed in after
+/// the fact (see LateEntryScreen) rather than tracked live, so admin can
+/// tell the recorded times were a JO's recollection, not a live capture.
+Widget _lateEntryBadge() {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+    decoration: BoxDecoration(
+      color: AppColors.warning.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: const Text(
+      'Late Entry',
+      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.warning),
+    ),
+  );
 }

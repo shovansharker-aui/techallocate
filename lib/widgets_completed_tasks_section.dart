@@ -2,9 +2,21 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'models/app_user.dart';
 import 'models/machine.dart';
+import 'utils/app_colors.dart';
 import 'utils/task_type.dart';
 import 'models/work_order.dart';
 import 'screens/completed_tasks_screen.dart';
+
+Widget _lateEntryChip() {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+    decoration: BoxDecoration(
+      color: AppColors.warning.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: const Text('Late', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.warning)),
+  );
+}
 
 class CompletedTasksSection extends StatelessWidget {
   const CompletedTasksSection({super.key});
@@ -42,7 +54,7 @@ class CompletedTasksSection extends StatelessWidget {
                 return Column(children: orders.take(8).map((o) {
                   final machine = machines[o.machineId];
                   final names = o.assignedTechnicianIds.map((id) => techs[id]?.name).whereType<String>().toList();
-                  return ListTile(dense: true, contentPadding: EdgeInsets.zero, leading: CircleAvatar(radius: 16, child: Text(_type(o))), title: Text(machine?.displayName ?? o.machineId, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text('${names.join(', ')} · ${_duration(o.durationSeconds)}'),);
+                  return ListTile(dense: true, contentPadding: EdgeInsets.zero, leading: CircleAvatar(radius: 16, child: Text(_type(o))), title: Text(machine?.displayName ?? (o.machineId.isEmpty ? 'No machine' : o.machineId), maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text('${names.join(', ')} · ${_duration(o.durationSeconds)}'), trailing: o.lateEntry ? _lateEntryChip() : null);
                 }).toList());
               },
             ),

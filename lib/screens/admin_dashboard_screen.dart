@@ -3,6 +3,7 @@ import '../models/app_user.dart';
 import '../widgets_admin_monitoring_panel.dart';
 import 'settings_screen.dart';
 import 'water_plant_overview_screen.dart';
+import 'backup_export_screen.dart';
 import '../widgets_root_back_scope.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
@@ -41,6 +42,14 @@ class AdminDashboardScreen extends StatelessWidget {
                 onTap: () {
                   Navigator.of(context).pop();
                   Navigator.of(context).push(MaterialPageRoute(builder: (_) => const WaterPlantOverviewScreen()));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.file_download_outlined),
+                title: const Text('Backup / Export'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BackupExportScreen()));
                 },
               ),
             ],

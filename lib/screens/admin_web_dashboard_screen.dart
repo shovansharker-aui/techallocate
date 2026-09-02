@@ -3,6 +3,7 @@ import '../models/app_user.dart';
 import '../widgets_admin_monitoring_panel.dart';
 import 'admin_web_settings_screen.dart';
 import 'water_plant_overview_screen.dart';
+import 'backup_export_screen.dart';
 
 class AdminWebDashboardScreen extends StatelessWidget {
   final AppUser user;
@@ -28,6 +29,7 @@ class AdminWebDashboardScreen extends StatelessWidget {
     const Padding(padding: EdgeInsets.fromLTRB(20, 28, 20, 24), child: Row(children: [Icon(Icons.engineering, size: 34), SizedBox(width: 12), Text('TechAllocate', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))])),
     ListTile(selected: true, leading: const Icon(Icons.dashboard_outlined), title: const Text('Maintenance'), onTap: () { if (MediaQuery.sizeOf(context).width < 950) Navigator.of(context).pop(); }),
     ListTile(leading: const Icon(Icons.water_drop_outlined), title: const Text('Water Plant'), onTap: () { if (MediaQuery.sizeOf(context).width < 950) Navigator.of(context).pop(); Navigator.of(context).push(MaterialPageRoute(builder: (_) => const WaterPlantOverviewScreen())); }),
+    ListTile(leading: const Icon(Icons.file_download_outlined), title: const Text('Backup / Export'), onTap: () { if (MediaQuery.sizeOf(context).width < 950) Navigator.of(context).pop(); Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BackupExportScreen())); }),
     ListTile(leading: const Icon(Icons.settings_outlined), title: const Text('Settings'), onTap: () { if (MediaQuery.sizeOf(context).width < 950) Navigator.of(context).pop(); Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminWebSettingsScreen())); }),
     const Spacer(), const Divider(height: 1),
     ListTile(leading: const CircleAvatar(child: Icon(Icons.person)), title: Text(user.name, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: const Text('Admin')),

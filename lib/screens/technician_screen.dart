@@ -9,6 +9,7 @@ import '../utils/task_type.dart';
 import '../utils/offline_commit.dart';
 import 'assign_helper_task_screen.dart';
 import 'my_cf_assignments_screen.dart';
+import 'late_entry_screen.dart';
 import '../utils/app_colors.dart';
 
 class TechnicianScreen extends StatelessWidget {
@@ -50,25 +51,53 @@ class TechnicianScreen extends StatelessWidget {
     await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
       'dutyStatus': choice,
       'status': choice == 'on_leave' ? 'on_leave' : 'available',
-      'currentTaskId': choice == 'on_leave' ? null : user.currentTaskId,
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final running = user.status == 'assigned' && user.currentTaskId != null;
     return RootBackScope(
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Junior Officer Dashboard'),
-          actions: [
-            IconButton(icon: const Icon(Icons.toggle_on_outlined), tooltip: 'Set Status', onPressed: () => _setDutyStatus(context)),
-            IconButton(icon: const Icon(Icons.logout), tooltip: 'Log out', onPressed: onLogout),
-          ],
-        ),
-        body: running
-            ? _CurrentTaskView(uid: user.uid, taskId: user.currentTaskId!)
-            : _TechnicianHome(uid: user.uid, user: user, onSetStatus: () => _setDutyStatus(context)),
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        // A JO can now run several tasks at once, so "what's running" is
+        // no longer a single currentTaskId on the user doc — it's simply
+        // every work order that lists them and is still in progress.
+        // array-contains + one equality filter like this doesn't need a
+        // manual Firestore composite index.
+        stream: FirebaseFirestore.instance
+            .collection('work_orders')
+            .where('assignedTechnicianIds', arrayContains: user.uid)
+            .where('status', isEqualTo: 'in_progress')
+            .snapshots(),
+        builder: (context, snapshot) {
+          final orders = (snapshot.data?.docs ?? [])
+              .map((d) => WorkOrder.fromMap(d.id, d.data()))
+              .toList()
+            ..sort((a, b) {
+              final at = a.startedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+              final bt = b.startedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+              return at.compareTo(bt);
+            });
+
+          if (orders.isEmpty) {
+            return Scaffold(
+              appBar: AppBar(
+                title: const Text('Junior Officer Dashboard'),
+                actions: [
+                  IconButton(icon: const Icon(Icons.toggle_on_outlined), tooltip: 'Set Status', onPressed: () => _setDutyStatus(context)),
+                  IconButton(icon: const Icon(Icons.logout), tooltip: 'Log out', onPressed: onLogout),
+                ],
+              ),
+              body: _TechnicianHome(uid: user.uid, user: user, onSetStatus: () => _setDutyStatus(context)),
+            );
+          }
+
+          return _RunningTasksTabs(
+            user: user,
+            orders: orders,
+            onSetStatus: () => _setDutyStatus(context),
+            onLogout: onLogout,
+          );
+        },
       ),
     );
   }
@@ -94,7 +123,7 @@ class _TechnicianHome extends StatelessWidget {
           child: ListTile(
             leading: const CircleAvatar(child: Icon(Icons.play_arrow)),
             title: const Text('Start a task', style: TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(onLeave ? 'Unavailable while on-leave.' : 'Select a machine, maintenance type and optional CFs.'),
+            subtitle: Text(onLeave ? 'Unavailable while on-leave.' : 'Select a machine and maintenance type.'),
             trailing: const Icon(Icons.chevron_right),
             enabled: !onLeave,
             onTap: onLeave ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _StartTaskPage(uid: uid))),
@@ -124,6 +153,16 @@ class _TechnicianHome extends StatelessWidget {
         const SizedBox(height: 12),
         Card(
           child: ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.history_edu_outlined)),
+            title: const Text('Add Past Task', style: TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: const Text('Log a task you couldn\'t enter at the time.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LateEntryScreen(uid: uid))),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: ListTile(
             leading: const CircleAvatar(child: Icon(Icons.toggle_on_outlined)),
             title: const Text('Set Status', style: TextStyle(fontWeight: FontWeight.bold)),
             subtitle: const Text('Day, Night or On-leave'),
@@ -141,6 +180,93 @@ class _TechnicianHome extends StatelessWidget {
       case 'on_leave': return 'On-leave';
       default: return 'Day';
     }
+  }
+}
+
+// The screen shown once a JO has one or more tasks running. Each task
+// gets its own tab so they can be worked and completed independently;
+// the "+" in the top right starts yet another one without disturbing
+// the tasks already in progress.
+class _RunningTasksTabs extends StatelessWidget {
+  final AppUser user;
+  final List<WorkOrder> orders;
+  final VoidCallback onSetStatus;
+  final VoidCallback onLogout;
+
+  const _RunningTasksTabs({
+    required this.user,
+    required this.orders,
+    required this.onSetStatus,
+    required this.onLogout,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = user.uid;
+    // Keying by the set of task ids (not just the count) means the tab
+    // controller is only rebuilt from scratch when a task actually
+    // starts or finishes — not on every minor field update (like a CF
+    // being added) that re-fires the parent query — so the JO doesn't
+    // lose their selected tab while just editing one of them.
+    final tabKey = ValueKey(orders.map((o) => o.id).join(','));
+    return DefaultTabController(
+      key: tabKey,
+      length: orders.length,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Running Tasks'),
+          actions: [
+            PopupMenuButton<String>(
+              tooltip: 'More',
+              onSelected: (value) {
+                switch (value) {
+                  case 'assign_cf':
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => AssignHelperTaskScreen(uid: uid)));
+                    break;
+                  case 'my_cf':
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => MyCfAssignmentsScreen(uid: uid)));
+                    break;
+                  case 'late_entry':
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => LateEntryScreen(uid: uid)));
+                    break;
+                  case 'status':
+                    onSetStatus();
+                    break;
+                  case 'logout':
+                    onLogout();
+                    break;
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'assign_cf', child: Text('Assign a CF')),
+                PopupMenuItem(value: 'my_cf', child: Text('My CF Assignments')),
+                PopupMenuItem(value: 'late_entry', child: Text('Add Past Task')),
+                PopupMenuItem(value: 'status', child: Text('Set Status')),
+                PopupMenuDivider(),
+                PopupMenuItem(value: 'logout', child: Text('Log out')),
+              ],
+            ),
+            IconButton(
+              icon: const Icon(Icons.add),
+              tooltip: 'Start another task',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _StartTaskPage(uid: uid))),
+            ),
+          ],
+          bottom: TabBar(
+            isScrollable: true,
+            tabs: [
+              for (var i = 0; i < orders.length; i++) Tab(text: '${taskTypeCode(orders[i].type)} ${i + 1}'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            for (final order in orders)
+              _CurrentTaskView(uid: uid, taskId: order.id, totalRunningCount: orders.length),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -225,13 +351,15 @@ class _StartTaskPageState extends State<_StartTaskPage> {
       'status': 'in_progress',
       'assignedTechnicianIds': [widget.uid],
       // CFs are no longer picked when starting a task — a JO adds them
-      // afterwards, from the running-task screen's "Add CF" button.
+      // afterwards, from that task's own tab via "Add CF".
       'helperIds': <String>[],
       'createdBy': widget.uid,
       'createdAt': startedNow,
       'startedAt': startedNow,
     });
-    batch.update(firestore.collection('users').doc(widget.uid), {'status': 'assigned', 'currentTaskId': ref.id});
+    // "assigned" now means "has at least one running task" — a JO
+    // starting a second (or third...) task simply re-affirms it.
+    batch.update(firestore.collection('users').doc(widget.uid), {'status': 'assigned'});
     try {
       // Fire the write and move on immediately — see offline_commit.dart
       // for why we never wait on this, not even briefly.
@@ -322,7 +450,11 @@ class _StartTaskPageState extends State<_StartTaskPage> {
 class _CurrentTaskView extends StatefulWidget {
   final String uid;
   final String taskId;
-  const _CurrentTaskView({required this.uid, required this.taskId});
+  // How many tasks this JO has running in total, INCLUDING this one —
+  // used on completion to decide whether they go back to "available" or
+  // stay "assigned" because another task is still open.
+  final int totalRunningCount;
+  const _CurrentTaskView({required this.uid, required this.taskId, required this.totalRunningCount});
   @override
   State<_CurrentTaskView> createState() => _CurrentTaskViewState();
 }
@@ -458,7 +590,10 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
       'durationSeconds': duration,
       'completionRemarks': remarks,
     });
-    batch.update(firestore.collection('users').doc(widget.uid), {'status': 'available', 'currentTaskId': null});
+    // Only drop back to "available" if this was the JO's last running
+    // task — otherwise they're still busy with the others.
+    final stillBusy = widget.totalRunningCount > 1;
+    batch.update(firestore.collection('users').doc(widget.uid), {'status': stillBusy ? 'assigned' : 'available'});
     for (final id in order.helperIds) {
       batch.update(firestore.collection('helpers').doc(id), {'status': 'available', 'currentTaskId': null});
     }
