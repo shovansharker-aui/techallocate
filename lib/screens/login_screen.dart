@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../main.dart';
 import '../services/technician_session_service.dart';
@@ -70,8 +71,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final role = data['role']?.toString().toLowerCase().trim();
-      if (role != 'admin' && role != 'technician') {
+      if (role != 'admin' && role != 'technician' && role != 'water_plant_manager') {
         _showError('This employee account has no valid role.');
+        return;
+      }
+      if (role == 'water_plant_manager' && !kIsWeb) {
+        _showError('This login can only be used on the web version, not the Android app.');
         return;
       }
 

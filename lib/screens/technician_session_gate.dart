@@ -6,6 +6,7 @@ import '../models/app_user.dart';
 import '../services/technician_session_service.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_web_dashboard_screen.dart';
+import 'water_plant_manager_dashboard.dart';
 import 'login_screen.dart';
 import 'technician_screen.dart';
 import '../widgets_root_back_scope.dart';
@@ -77,6 +78,17 @@ class UserSessionGate extends StatelessWidget {
               user: user,
               onLogout: () => _logout(context),
             );
+          case 'water_plant_manager':
+            if (!kIsWeb) {
+              // This should already be blocked at login time, but the
+              // check lives here too in case a session was somehow
+              // saved before this restriction existed.
+              return _ErrorScreen(
+                message: 'The Water Plant login can only be used on the web version.',
+                onLogout: () => _logout(context),
+              );
+            }
+            return WaterPlantManagerDashboard();
           default:
             return _ErrorScreen(
               message: 'Invalid employee role: ${user.role}',
