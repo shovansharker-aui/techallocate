@@ -4,6 +4,7 @@ import '../models/helper.dart';
 import '../models/machine.dart';
 import '../widgets_confirm_back_scope.dart';
 import '../utils/app_colors.dart';
+import '../utils/machine_group.dart';
 import '../utils/task_type.dart';
 import '../utils/offline_commit.dart';
 
@@ -21,6 +22,7 @@ class AssignHelperTaskScreen extends StatefulWidget {
 class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
   String? _selectedMachineId;
   Machine? _selectedMachine;
+  Set<String> _selectedGroupUnitIds = <String>{};
   String _type = 'preventive';
   final Set<String> _preventiveTypes = <String>{};
   final Set<String> _selectedHelperIds = <String>{};
@@ -70,11 +72,21 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
     return matches;
   }
 
-  void _selectMachine(Machine machine) {
+  Future<void> _selectMachine(Machine machine, List<Machine> allMachines) async {
+    final resolved = resolveGroup(machine, allMachines);
+    var groupUnitIds = <String>{};
+    var effective = machine;
+    if (resolved != null) {
+      final picked = await pickGroupUnits(context, tapped: machine, resolved: resolved);
+      if (picked == null) return; // cancelled — leave prior selection untouched
+      groupUnitIds = picked;
+      effective = resolved.main;
+    }
     setState(() {
-      _selectedMachine = machine;
-      _selectedMachineId = machine.id;
-      _machineSearchController.text = machine.displayName;
+      _selectedMachine = effective;
+      _selectedMachineId = effective.id;
+      _selectedGroupUnitIds = groupUnitIds;
+      _machineSearchController.text = effective.displayName;
       _machineSearchController.selection = TextSelection.fromPosition(
         TextPosition(offset: _machineSearchController.text.length),
       );
@@ -187,8 +199,8 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
       'type': _type,
       'preventiveTypes': _type == 'preventive' ? _preventiveTypes.toList() : <String>[],
       'machineId': _selectedMachineId,
+      'groupMachineIds': _selectedGroupUnitIds.toList(),
       'description': _remarksController.text.trim(),
-      'priority': 'medium',
       'status': 'in_progress',
       'assignedTechnicianIds': <String>[],
       'helperIds': _selectedHelperIds.toList(),
@@ -270,6 +282,7 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
                         setState(() {
                           _selectedMachine = null;
                           _selectedMachineId = null;
+                          _selectedGroupUnitIds = {};
                           _showSuggestions = value.trim().isNotEmpty;
                         });
                       },
@@ -287,6 +300,7 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
                                 onPressed: () => setState(() {
                                   _selectedMachine = null;
                                   _selectedMachineId = null;
+                                  _selectedGroupUnitIds = {};
                                   _machineSearchController.clear();
                                 }),
                                 icon: const Icon(Icons.clear),
@@ -307,7 +321,7 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
                                   (machine) => ListTile(
                                     title: Text(machine.displayName),
                                     subtitle: Text(machine.equipmentId),
-                                    onTap: () => _selectMachine(machine),
+                                    onTap: () => _selectMachine(machine, machines),
                                   ),
                                 )
                                 .toList(),
@@ -320,7 +334,9 @@ class _AssignHelperTaskScreenState extends State<AssignHelperTaskScreen> {
                         child: Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
-                            'Selected: ${_selectedMachine!.displayName}',
+                            _selectedGroupUnitIds.isEmpty
+                                ? 'Selected: ${_selectedMachine!.displayName}'
+                                : 'Selected: ${_selectedMachine!.displayName} + ${_selectedGroupUnitIds.length} other unit(s)',
                             style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ),

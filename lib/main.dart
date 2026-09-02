@@ -209,6 +209,14 @@ class TechAllocateApp extends StatelessWidget {
           themeMode: themeService.mode,
           theme: _buildTheme(Brightness.light),
           darkTheme: _buildTheme(Brightness.dark),
+          // Forces every showTimePicker and TimeOfDay.format() call in
+          // the app to use 12-hour AM/PM, regardless of the device's own
+          // locale/settings — so times are consistent everywhere instead
+          // of depending on how each phone happens to be configured.
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
+            child: child!,
+          ),
           home: const AuthGate(),
         );
       },

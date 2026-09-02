@@ -8,6 +8,10 @@ class AppUser {
   final String phone;
   final String status; // available | assigned | on_leave
   final String dutyStatus; // day | night | on_leave
+  // 'YYYY-MM-DD' of the last date this JO actually set their status —
+  // used to require it again after 8:00 AM on a new day (see
+  // TechnicianScreen's mandatory check-in).
+  final String dutyStatusDate;
   final String? currentTaskId;
 
   AppUser({
@@ -20,6 +24,7 @@ class AppUser {
     required this.phone,
     required this.status,
     required this.dutyStatus,
+    this.dutyStatusDate = '',
     this.currentTaskId,
   });
 
@@ -34,6 +39,7 @@ class AppUser {
       phone: data['phone'] ?? '',
       status: data['status'] ?? 'available',
       dutyStatus: (data['dutyStatus'] ?? data['shift'] ?? 'day').toString(),
+      dutyStatusDate: (data['dutyStatusDate'] ?? '').toString(),
       currentTaskId: data['currentTaskId'],
     );
   }

@@ -3,6 +3,7 @@ import '../models/app_user.dart';
 import '../models/helper.dart';
 import '../models/machine.dart';
 import '../models/work_order.dart';
+import 'date_format.dart';
 import 'task_type.dart';
 
 /// Builds the CSV backup content for a set of completed work orders,
@@ -15,13 +16,6 @@ String buildWorkOrdersCsv({
   required Map<String, AppUser> technicians,
   required Map<String, Helper> helpers,
 }) {
-  String formatDateTime(DateTime? value) {
-    if (value == null) return '';
-    final local = value.toLocal();
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(local.day)}/${two(local.month)}/${local.year} ${two(local.hour)}:${two(local.minute)}';
-  }
-
   String formatDuration(int? seconds) {
     if (seconds == null) return '';
     final d = Duration(seconds: seconds);
@@ -34,6 +28,7 @@ String buildWorkOrdersCsv({
       'Type',
       'Preventive Sub-types',
       'Machine',
+      'Other Units',
       'Equipment ID',
       'Category',
       'Technician(s)',
@@ -41,7 +36,6 @@ String buildWorkOrdersCsv({
       'Started At',
       'Completed At',
       'Duration',
-      'Priority',
       'Remarks',
       'Late Entry',
     ],
@@ -51,20 +45,24 @@ String buildWorkOrdersCsv({
     final machine = machines[order.machineId];
     final techNames = order.assignedTechnicianIds.map((id) => technicians[id]?.name).whereType<String>().join(', ');
     final helperNames = order.helperIds.map((id) => helpers[id]?.name).whereType<String>().join(', ');
+    // Original equipment name here — never the nickname — even though
+    // the app shows the nickname to admin elsewhere. Backups are meant
+    // to match the underlying equipment records exactly.
+    final otherUnits = order.groupMachineIds.map((id) => machines[id]?.equipmentId).whereType<String>().join(', ');
 
     rows.add([
       taskTypeCode(order.type),
       taskTypeName(order.type),
       order.preventiveTypes.join(', '),
-      machine?.displayName ?? (order.machineId.isEmpty ? '' : order.machineId),
+      machine?.equipmentName ?? (order.machineId.isEmpty ? '' : order.machineId),
+      otherUnits,
       machine?.equipmentId ?? '',
       machine?.category ?? '',
       techNames,
       helperNames,
-      formatDateTime(order.startedAt),
-      formatDateTime(order.completedAt),
+      formatDateTime12h(order.startedAt),
+      formatDateTime12h(order.completedAt),
       formatDuration(order.durationSeconds),
-      order.priority,
       order.completionRemarks,
       order.lateEntry ? 'Yes' : 'No',
     ]);

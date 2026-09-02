@@ -8,6 +8,7 @@ import 'models/work_order.dart';
 import 'models/app_user.dart';
 import 'utils/task_type.dart';
 import 'utils/task_completion.dart';
+import 'utils/date_format.dart';
 import 'utils/app_colors.dart';
 
 class LiveActivityGrid extends StatefulWidget {
@@ -78,8 +79,8 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
 
                     // One tile per task, not per person.
                     orders.sort((a, b) {
-                      final aName = machines[a.machineId]?.displayName ?? a.machineId;
-                      final bName = machines[b.machineId]?.displayName ?? b.machineId;
+                      final aName = machines[a.machineId]?.fullLabel ?? a.machineId;
+                      final bName = machines[b.machineId]?.fullLabel ?? b.machineId;
                       return aName.toLowerCase().compareTo(bName.toLowerCase());
                     });
 
@@ -111,7 +112,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                       children: [
                                         Expanded(
                                           child: Text(
-                                            machine?.displayName ?? (order.machineId.isEmpty ? 'No machine' : order.machineId),
+                                            machine?.fullLabel ?? (order.machineId.isEmpty ? 'No machine' : order.machineId),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
@@ -127,6 +128,10 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                     ),
                                     const SizedBox(height: 8),
                                     _peopleRow(context, Icons.engineering_outlined, technicianNames, 'No JO'),
+                                    if (order.groupMachineIds.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text('Other units: ${order.groupMachineIds.join(', ')}', style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+                                    ],
                                     if (helperNames.isNotEmpty) ...[
                                       const SizedBox(height: 4),
                                       _peopleRow(context, Icons.handyman_outlined, helperNames, ''),
@@ -178,17 +183,20 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(machine?.displayName ?? (order.machineId.isEmpty ? 'No machine' : order.machineId)),
+        title: Text(machine?.fullLabel ?? (order.machineId.isEmpty ? 'No machine' : order.machineId)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (order.groupMachineIds.isNotEmpty)
+                _detailRow('Other units', order.groupMachineIds.join(', ')),
               if (machine != null && machine.equipmentId.isNotEmpty)
                 _detailRow('Equipment ID', machine.equipmentId),
               _detailRow('Type', '${_typeCode(order)} · ${taskTypeName(order.type)}'),
               if (order.preventiveTypes.isNotEmpty)
                 _detailRow('Preventive type', order.preventiveTypes.join(', ')),
+              _detailRow('Started', formatTime12h(order.startedAt ?? DateTime.now())),
               _detailRow('Running for', _duration(order.startedAt)),
               if (technicianNames.isNotEmpty)
                 _detailRow('Junior Officer(s)', technicianNames.join(', ')),

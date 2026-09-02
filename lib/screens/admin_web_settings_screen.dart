@@ -3,8 +3,27 @@ import 'add_personnel_screen.dart';
 import 'machines_screen.dart';
 import '../services/theme_service.dart';
 
+/// Thin Scaffold wrapper around AdminSettingsBody, so it can be pushed as
+/// its own screen (Android admin nav) while the web admin shell embeds
+/// AdminSettingsBody directly without stacking two AppBars.
 class AdminWebSettingsScreen extends StatelessWidget {
   const AdminWebSettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: const AdminSettingsBody(),
+    );
+  }
+}
+
+/// The actual settings list (Add Personnel, Machines, Theme), with no
+/// Scaffold or AppBar of its own — embed this directly wherever a
+/// persistent shell (like the web admin sidebar layout) already
+/// provides those.
+class AdminSettingsBody extends StatelessWidget {
+  const AdminSettingsBody({super.key});
 
   void _open(BuildContext context, Widget page) {
     Navigator.of(context).push(
@@ -17,11 +36,7 @@ class AdminWebSettingsScreen extends StatelessWidget {
     final width = MediaQuery.sizeOf(context).width;
     final contentWidth = width > 1000 ? 900.0 : double.infinity;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-      ),
-      body: Center(
+    return Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: contentWidth),
           child: ListView(
@@ -101,7 +116,6 @@ class AdminWebSettingsScreen extends StatelessWidget {
             ],
           ),
         ),
-      ),
     );
   }
 }

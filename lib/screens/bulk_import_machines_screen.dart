@@ -6,8 +6,12 @@ import '../utils/app_colors.dart';
 
 // Bulk-import machines from a CSV file. Expected columns (header row
 // required, any order, case-insensitive):
-//   Equipment ID, Equipment Name, Nickname, Category
+//   Equipment ID, Equipment Name, Nickname, Category, Group
 // Category must be Engineering, Production, or Warehouse.
+// Group is optional — leave blank for a machine that isn't part of any
+// group; it's stored as "N/A" either way. Machines sharing the same
+// Group value are treated as one grouped machine, with the lowest
+// Equipment ID among them as the "main" unit.
 // Matching by Equipment ID: if a machine with that ID already exists,
 // it's updated instead of duplicated.
 class BulkImportMachinesScreen extends StatefulWidget {
@@ -23,6 +27,7 @@ class _ParsedRow {
   final String equipmentName;
   final String brand;
   final String category;
+  final String group;
   final String? error;
   const _ParsedRow({
     required this.lineNumber,
@@ -30,6 +35,7 @@ class _ParsedRow {
     required this.equipmentName,
     required this.brand,
     required this.category,
+    required this.group,
     this.error,
   });
   bool get isValid => error == null;
@@ -66,6 +72,7 @@ class _BulkImportMachinesScreenState extends State<BulkImportMachinesScreen> {
     final nameCol = header.indexWhere((h) => h.contains('equipment name') || h == 'name');
     final brandCol = header.indexWhere((h) => h.contains('brand') || h.contains('nickname'));
     final categoryCol = header.indexWhere((h) => h.contains('category'));
+    final groupCol = header.indexWhere((h) => h.contains('group'));
 
     if (idCol == -1 || nameCol == -1) {
       setState(() {
@@ -87,6 +94,7 @@ class _BulkImportMachinesScreenState extends State<BulkImportMachinesScreen> {
       final equipmentName = field(nameCol);
       final brand = field(brandCol);
       var category = field(categoryCol);
+      final group = field(groupCol).isEmpty ? 'N/A' : field(groupCol);
       final normalized = _validCategories.firstWhere(
         (c) => c.toLowerCase() == category.toLowerCase(),
         orElse: () => '',
@@ -108,6 +116,7 @@ class _BulkImportMachinesScreenState extends State<BulkImportMachinesScreen> {
         equipmentName: equipmentName,
         brand: brand,
         category: category,
+        group: group,
         error: error,
       ));
     }
@@ -139,6 +148,7 @@ class _BulkImportMachinesScreenState extends State<BulkImportMachinesScreen> {
           'equipmentName': row.equipmentName,
           'brand': row.brand,
           'category': row.category,
+          'group': row.group,
         };
         if (existing.docs.isNotEmpty) {
           batch.update(existing.docs.first.reference, data);
@@ -178,9 +188,12 @@ class _BulkImportMachinesScreenState extends State<BulkImportMachinesScreen> {
                 padding: EdgeInsets.all(14),
                 child: Text(
                   'CSV format: a header row, then one machine per row.\n\n'
-                  'Columns needed: Equipment ID, Equipment Name, Nickname, Category\n\n'
+                  'Columns needed: Equipment ID, Equipment Name, Nickname, Category, Group\n\n'
                   '"Category" must be Engineering, Production, or Warehouse. '
-                  '"Nickname" is optional. If a machine with a matching Equipment ID '
+                  '"Nickname" and "Group" are optional — machines left blank in "Group" are '
+                  'stored as not belonging to any group. Machines sharing the same Group value are '
+                  'treated as one grouped machine (e.g. a compression unit and its deduster). '
+                  'If a machine with a matching Equipment ID '
                   'already exists, it will be updated instead of duplicated.\n\n'
                   'Exported from Excel or Google Sheets as CSV works fine.',
                 ),
@@ -218,7 +231,7 @@ class _BulkImportMachinesScreenState extends State<BulkImportMachinesScreen> {
                         color: row.isValid ? AppColors.success : AppColors.danger,
                       ),
                       title: Text('${row.equipmentId} — ${row.equipmentName}'),
-                      subtitle: Text(row.isValid ? '${row.category}${row.brand.isNotEmpty ? ' · ${row.brand}' : ''}' : 'Line ${row.lineNumber}: ${row.error}'),
+                      subtitle: Text(row.isValid ? '${row.category}${row.brand.isNotEmpty ? ' · ${row.brand}' : ''}${row.group != 'N/A' ? ' · Group: ${row.group}' : ''}' : 'Line ${row.lineNumber}: ${row.error}'),
                     );
                   },
                 ),

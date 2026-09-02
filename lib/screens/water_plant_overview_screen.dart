@@ -9,12 +9,11 @@ import 'water_plant_manager_dashboard.dart';
 // currently assigned there (after the Switching swap, if enabled) and
 // their Day/Night/On-Leave status for today.
 //
-// Used two ways:
-//  - by admin, pushed on top of the admin nav shell (no logout button of
-//    its own, no duty-allocation shortcut — admin doesn't edit statuses
-//    directly here)
-//  - as the "waterplant" account's own landing screen, where it needs
-//    its own logout button and a way to reach the duty allocation table
+// Split into a body (no Scaffold/AppBar of its own — WaterPlantOverviewBody
+// below) and a thin Scaffold wrapper (WaterPlantOverviewScreen), so the
+// same content can either be pushed as its own screen (Android admin nav,
+// the "waterplant" account's own root screen) or embedded directly inside
+// the persistent web admin shell without stacking two AppBars.
 class WaterPlantOverviewScreen extends StatelessWidget {
   final VoidCallback? onLogout;
   final bool showDutyAllocationButton;
@@ -27,95 +26,108 @@ class WaterPlantOverviewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Water Plant'),
+        actions: [
+          if (showDutyAllocationButton)
+            IconButton(
+              icon: const Icon(Icons.edit_calendar_outlined),
+              tooltip: 'Duty Allocation',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const WaterPlantDutyAllocationScreen()),
+              ),
+            ),
+          if (onLogout != null)
+            IconButton(icon: const Icon(Icons.logout), tooltip: 'Log out', onPressed: onLogout),
+        ],
+      ),
+      body: const WaterPlantOverviewBody(),
+    );
+  }
+}
+
+/// The actual Switching toggle + GP/Softgel tiles, with no Scaffold or
+/// AppBar of its own — embed this directly wherever a persistent shell
+/// (like the web admin sidebar layout) already provides those.
+class WaterPlantOverviewBody extends StatelessWidget {
+  const WaterPlantOverviewBody({super.key});
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: waterPlantSettingsRef.snapshots(),
       builder: (context, settingsSnapshot) {
         final switchingEnabled = switchingEnabledFrom(settingsSnapshot.data?.data());
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Water Plant'),
-            actions: [
-              if (showDutyAllocationButton)
-                IconButton(
-                  icon: const Icon(Icons.edit_calendar_outlined),
-                  tooltip: 'Duty Allocation',
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const WaterPlantDutyAllocationScreen()),
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Card(
+                child: SwitchListTile(
+                  title: const Text('Switching', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(
+                    switchingEnabled
+                        ? 'On — personnel automatically swap plants after 7:30 AM.'
+                        : 'Off — personnel stay on their morning-assigned plant all day.',
                   ),
-                ),
-              if (onLogout != null)
-                IconButton(icon: const Icon(Icons.logout), tooltip: 'Log out', onPressed: onLogout),
-            ],
-          ),
-          body: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: Card(
-                  child: SwitchListTile(
-                    title: const Text('Switching', style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(
-                      switchingEnabled
-                          ? 'On — personnel automatically swap plants after 7:30 AM.'
-                          : 'Off — personnel stay on their morning-assigned plant all day.',
-                    ),
-                    value: switchingEnabled,
-                    onChanged: (value) {
-                      // Single-document write, fire-and-forget: the local
-                      // cache (and this Switch) updates instantly via the
-                      // StreamBuilder above regardless of connectivity.
-                      waterPlantSettingsRef.set({'switchingEnabled': value}, SetOptions(merge: true));
-                    },
-                  ),
-                ),
-              ),
-              Expanded(
-                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: FirebaseFirestore.instance.collection('water_plant_personnel').orderBy('name').snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError) {
-                      return Center(child: Text('Unable to load: ${snapshot.error}'));
-                    }
-
-                    final people = (snapshot.data?.docs ?? [])
-                        .map((d) => WaterPlantPersonnel.fromMap(d.id, d.data()))
-                        .toList();
-
-                    final gp = people.where((p) => effectivePlant(p.plant, switchingEnabled: switchingEnabled) == 'gp').toList();
-                    final softgel = people.where((p) => effectivePlant(p.plant, switchingEnabled: switchingEnabled) == 'softgel').toList();
-
-                    return Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final twoColumn = constraints.maxWidth >= 500;
-                          final tiles = [
-                            _plantTile('GP Water Plant', Icons.water_drop_outlined, AppColors.categoryProduction, gp),
-                            _plantTile('Softgel Water Plant', Icons.water_drop_outlined, AppColors.categoryEngineering, softgel),
-                          ];
-                          if (!twoColumn) {
-                            return ListView(children: [tiles[0], const SizedBox(height: 12), tiles[1]]);
-                          }
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(child: tiles[0]),
-                              const SizedBox(width: 12),
-                              Expanded(child: tiles[1]),
-                            ],
-                          );
-                        },
-                      ),
-                    );
+                  value: switchingEnabled,
+                  onChanged: (value) {
+                    // Single-document write, fire-and-forget: the local
+                    // cache (and this Switch) updates instantly via the
+                    // StreamBuilder above regardless of connectivity.
+                    waterPlantSettingsRef.set({'switchingEnabled': value}, SetOptions(merge: true));
                   },
                 ),
               ),
-            ],
-          ),
+            ),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: FirebaseFirestore.instance.collection('water_plant_personnel').orderBy('name').snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Unable to load: ${snapshot.error}'));
+                  }
+
+                  final people = (snapshot.data?.docs ?? [])
+                      .where((d) => d.id != waterPlantSettingsDocId)
+                      .map((d) => WaterPlantPersonnel.fromMap(d.id, d.data()))
+                      .toList();
+
+                  final gp = people.where((p) => effectivePlant(p.plant, switchingEnabled: switchingEnabled) == 'gp').toList();
+                  final softgel = people.where((p) => effectivePlant(p.plant, switchingEnabled: switchingEnabled) == 'softgel').toList();
+
+                  return Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final twoColumn = constraints.maxWidth >= 500;
+                        final tiles = [
+                          _plantTile('GP Water Plant', Icons.water_drop_outlined, AppColors.categoryProduction, gp),
+                          _plantTile('Softgel Water Plant', Icons.water_drop_outlined, AppColors.categoryEngineering, softgel),
+                        ];
+                        if (!twoColumn) {
+                          return ListView(children: [tiles[0], const SizedBox(height: 12), tiles[1]]);
+                        }
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: tiles[0]),
+                            const SizedBox(width: 12),
+                            Expanded(child: tiles[1]),
+                          ],
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         );
       },
     );

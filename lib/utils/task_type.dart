@@ -3,7 +3,7 @@
 // changing or adding a task type meant remembering to update all 4. Now
 // there's just this one file to touch.
 
-/// Short circular-badge code: PM, BM, CL, AD, CO, TR, OT.
+/// Short circular-badge code: PM, BM, CL, AD, CO, OT.
 String taskTypeCode(String type) {
   switch (type) {
     case 'preventive':
@@ -16,8 +16,6 @@ String taskTypeCode(String type) {
       return 'AD';
     case 'changeover':
       return 'CO';
-    case 'trial':
-      return 'TR';
     case 'others':
       return 'OT';
     default:
@@ -26,7 +24,7 @@ String taskTypeCode(String type) {
 }
 
 /// Full word: Preventive, Breakdown, Calibration, Adjustment, Changeover,
-/// Trial, Others.
+/// Others.
 String taskTypeName(String type) {
   switch (type) {
     case 'preventive':
@@ -39,8 +37,6 @@ String taskTypeName(String type) {
       return 'Adjustment';
     case 'changeover':
       return 'Changeover';
-    case 'trial':
-      return 'Trial';
     case 'others':
       return 'Others';
     default:
@@ -55,7 +51,6 @@ const List<String> allTaskTypes = [
   'calibration',
   'adjustment',
   'changeover',
-  'trial',
   'others',
 ];
 

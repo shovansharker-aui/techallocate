@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/machine.dart';
 import '../utils/app_colors.dart';
+import '../utils/date_format.dart';
+import '../utils/machine_group.dart';
 import '../utils/task_type.dart';
 import '../utils/offline_commit.dart';
 
@@ -22,6 +24,7 @@ class LateEntryScreen extends StatefulWidget {
 class _LateEntryScreenState extends State<LateEntryScreen> {
   String? _selectedMachineId;
   Machine? _selectedMachine;
+  Set<String> _selectedGroupUnitIds = <String>{};
   String _type = 'breakdown';
   final Set<String> _preventiveTypes = <String>{};
   DateTime? _startedAt;
@@ -58,11 +61,21 @@ class _LateEntryScreenState extends State<LateEntryScreen> {
     return matches;
   }
 
-  void _selectMachine(Machine machine) {
+  Future<void> _selectMachine(Machine machine, List<Machine> allMachines) async {
+    final resolved = resolveGroup(machine, allMachines);
+    var groupUnitIds = <String>{};
+    var effective = machine;
+    if (resolved != null) {
+      final picked = await pickGroupUnits(context, tapped: machine, resolved: resolved);
+      if (picked == null) return; // cancelled — leave prior selection untouched
+      groupUnitIds = picked;
+      effective = resolved.main;
+    }
     setState(() {
-      _selectedMachine = machine;
-      _selectedMachineId = machine.id;
-      _machineSearchController.text = machine.displayName;
+      _selectedMachine = effective;
+      _selectedMachineId = effective.id;
+      _selectedGroupUnitIds = groupUnitIds;
+      _machineSearchController.text = effective.displayName;
       _machineSearchController.selection = TextSelection.fromPosition(TextPosition(offset: _machineSearchController.text.length));
       _showSuggestions = false;
       _errorText = null;
@@ -95,12 +108,6 @@ class _LateEntryScreenState extends State<LateEntryScreen> {
     });
   }
 
-  String _formatDateTime(DateTime value) {
-    final local = value.toLocal();
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(local.day)}/${two(local.month)}/${local.year} ${two(local.hour)}:${two(local.minute)}';
-  }
-
   Future<void> _save() async {
     setState(() => _errorText = null);
     if (_type != 'others' && _selectedMachineId == null) return setState(() => _errorText = 'Please select a machine.');
@@ -123,8 +130,8 @@ class _LateEntryScreenState extends State<LateEntryScreen> {
       'type': _type,
       'preventiveTypes': _type == 'preventive' ? _preventiveTypes.toList() : <String>[],
       'machineId': _selectedMachineId,
+      'groupMachineIds': _selectedGroupUnitIds.toList(),
       'description': '',
-      'priority': 'medium',
       'status': 'completed',
       'assignedTechnicianIds': [widget.uid],
       'helperIds': <String>[],
@@ -173,18 +180,23 @@ class _LateEntryScreenState extends State<LateEntryScreen> {
           return Column(children: [
             TextField(
               controller: _machineSearchController,
-              onChanged: (v) => setState(() { _selectedMachine = null; _selectedMachineId = null; _showSuggestions = v.trim().isNotEmpty; }),
+              onChanged: (v) => setState(() { _selectedMachine = null; _selectedMachineId = null; _selectedGroupUnitIds = {}; _showSuggestions = v.trim().isNotEmpty; }),
               onTap: () => setState(() => _showSuggestions = _machineSearchController.text.trim().isNotEmpty),
-              decoration: InputDecoration(labelText: _type == 'others' ? 'Search machine (optional)' : 'Search machine', hintText: 'Machine name or equipment ID', prefixIcon: const Icon(Icons.search), suffixIcon: _selectedMachine == null ? null : IconButton(onPressed: () => setState(() { _selectedMachine = null; _selectedMachineId = null; _machineSearchController.clear(); }), icon: const Icon(Icons.clear)), border: const OutlineInputBorder()),
+              decoration: InputDecoration(labelText: _type == 'others' ? 'Search machine (optional)' : 'Search machine', hintText: 'Machine name or equipment ID', prefixIcon: const Icon(Icons.search), suffixIcon: _selectedMachine == null ? null : IconButton(onPressed: () => setState(() { _selectedMachine = null; _selectedMachineId = null; _selectedGroupUnitIds = {}; _machineSearchController.clear(); }), icon: const Icon(Icons.clear)), border: const OutlineInputBorder()),
             ),
             if (_showSuggestions && suggestions.isNotEmpty) Card(child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 320),
               child: ListView(
                 shrinkWrap: true,
-                children: suggestions.map((m) => ListTile(title: Text(m.displayName), subtitle: Text(m.equipmentId), onTap: () => _selectMachine(m))).toList(),
+                children: suggestions.map((m) => ListTile(title: Text(m.displayName), subtitle: Text(m.equipmentId), onTap: () => _selectMachine(m, machines))).toList(),
               ),
             )),
-            if (_selectedMachine != null) Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(top: 8), child: Text('Selected: ${_selectedMachine!.displayName}', style: const TextStyle(fontWeight: FontWeight.w600)))),
+            if (_selectedMachine != null) Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(top: 8), child: Text(
+              _selectedGroupUnitIds.isEmpty
+                  ? 'Selected: ${_selectedMachine!.displayName}'
+                  : 'Selected: ${_selectedMachine!.displayName} + ${_selectedGroupUnitIds.length} other unit(s)',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ))),
           ]);
         }),
         const SizedBox(height: 20),
@@ -223,7 +235,7 @@ class _LateEntryScreenState extends State<LateEntryScreen> {
         OutlinedButton.icon(
           onPressed: () => _pickDateTime(isStart: true),
           icon: const Icon(Icons.schedule_outlined),
-          label: Text(_startedAt == null ? 'Set start time' : _formatDateTime(_startedAt!)),
+          label: Text(_startedAt == null ? 'Set start time' : formatDateTime12h(_startedAt)),
         ),
         const SizedBox(height: 16),
         const Text('Stop date & time', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -231,7 +243,7 @@ class _LateEntryScreenState extends State<LateEntryScreen> {
         OutlinedButton.icon(
           onPressed: () => _pickDateTime(isStart: false),
           icon: const Icon(Icons.schedule_outlined),
-          label: Text(_completedAt == null ? 'Set stop time' : _formatDateTime(_completedAt!)),
+          label: Text(_completedAt == null ? 'Set stop time' : formatDateTime12h(_completedAt)),
         ),
         const SizedBox(height: 18),
         Text(

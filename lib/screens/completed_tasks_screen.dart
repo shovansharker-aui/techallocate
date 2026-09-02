@@ -4,6 +4,7 @@ import '../models/helper.dart';
 import '../models/machine.dart';
 import '../models/work_order.dart';
 import '../models/app_user.dart';
+import '../utils/date_format.dart';
 import '../utils/task_type.dart';
 import '../utils/app_colors.dart';
 
@@ -82,26 +83,6 @@ class _CompletedTasksScreenState extends State<CompletedTasksScreen> {
     }
   }
 
-  String _formatDate(DateTime? value) {
-    if (value == null) return 'Unknown time';
-    final local = value.toLocal();
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(local.day)}/${two(local.month)}/${local.year} ${two(local.hour)}:${two(local.minute)}';
-  }
-
-  String _duration(int? seconds) {
-    if (seconds == null || seconds < 0) return '—';
-    final d = Duration(seconds: seconds);
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    final s = d.inSeconds.remainder(60);
-    if (h > 0) return '${h}h ${m}m';
-    if (m > 0) return '${m}m ${s}s';
-    return '${s}s';
-  }
-
-
-
   String _typeDetail(WorkOrder order) {
     if (order.type == 'preventive' && order.preventiveTypes.isNotEmpty) {
       return order.preventiveTypes.join(', ');
@@ -130,8 +111,6 @@ class _CompletedTasksScreenState extends State<CompletedTasksScreen> {
       end: end,
       typeCode: (o) => taskTypeCode(o.type),
       typeDetail: _typeDetail,
-      formatDate: _formatDate,
-      duration: _duration,
       users: _users,
       helpers: _helpers,
       machines: _machines,
@@ -167,32 +146,7 @@ class _CompletedTasksScreenState extends State<CompletedTasksScreen> {
 
             return Column(
               children: orders.map((order) {
-                final machine = machines[order.machineId];
-                final techNames = order.assignedTechnicianIds.map((id) => users[id]?.name).whereType<String>().toList();
-                final helperNames = order.helperIds.map((id) => helpers[id]?.name).whereType<String>().toList();
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ExpansionTile(
-                    leading: CircleAvatar(child: Text(taskTypeCode(order.type))),
-                    title: Row(children: [
-                      Expanded(child: Text(machine?.displayName ?? (order.machineId.isEmpty ? 'No machine' : order.machineId), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      if (order.lateEntry) ...[const SizedBox(width: 6), _lateEntryBadge()],
-                    ]),
-                    subtitle: Text([
-                      if (_typeDetail(order).isNotEmpty) _typeDetail(order),
-                      _formatDate(order.completedAt),
-                      _duration(order.durationSeconds),
-                    ].join(' · ')),
-                    childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                    children: [
-                      if (techNames.isNotEmpty) ListTile(dense: true, leading: const Icon(Icons.engineering_outlined), title: Text('JO: ${techNames.join(', ')}')),
-                      if (helperNames.isNotEmpty) ListTile(dense: true, leading: const Icon(Icons.handyman_outlined), title: Text('CF: ${helperNames.join(', ')}')),
-                      if (machine?.equipmentId.isNotEmpty == true) ListTile(dense: true, leading: const Icon(Icons.badge_outlined), title: Text('Equipment: ${machine!.equipmentId}')),
-                      if (order.description.isNotEmpty) ListTile(dense: true, leading: const Icon(Icons.notes_outlined), title: Text('Start remarks: ${order.description}')),
-                      if (order.completionRemarks.isNotEmpty) ListTile(dense: true, leading: const Icon(Icons.check_circle_outline), title: Text('Completion remarks: ${order.completionRemarks}')),
-                    ],
-                  ),
-                );
+                return _CompletedTaskRow(order: order, machines: machines, users: users, helpers: helpers, typeDetail: _typeDetail(order));
               }).toList(),
             );
           },
@@ -255,8 +209,6 @@ class _PaginatedMonthlyTasks extends StatefulWidget {
   final DateTime end;
   final String Function(WorkOrder) typeCode;
   final String Function(WorkOrder) typeDetail;
-  final String Function(DateTime?) formatDate;
-  final String Function(int?) duration;
   final Future<List<AppUser>> Function() users;
   final Future<List<Helper>> Function() helpers;
   final Future<Map<String, Machine>> Function() machines;
@@ -266,8 +218,6 @@ class _PaginatedMonthlyTasks extends StatefulWidget {
     required this.end,
     required this.typeCode,
     required this.typeDetail,
-    required this.formatDate,
-    required this.duration,
     required this.users,
     required this.helpers,
     required this.machines,
@@ -355,6 +305,10 @@ class _PaginatedMonthlyTasksState extends State<_PaginatedMonthlyTasks> {
     }
   }
 
+  void _removeLocally(String orderId) {
+    setState(() => _orders.removeWhere((o) => o.id == orderId));
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_peopleLoaded || (_orders.isEmpty && _isLoading)) {
@@ -369,31 +323,13 @@ class _PaginatedMonthlyTasksState extends State<_PaginatedMonthlyTasks> {
     return Column(
       children: [
         ..._orders.map((order) {
-          final machine = _machines[order.machineId];
-          final techNames = order.assignedTechnicianIds.map((id) => _users[id]?.name).whereType<String>().toList();
-          final helperNames = order.helperIds.map((id) => _helpers[id]?.name).whereType<String>().toList();
-          return Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ExpansionTile(
-              leading: CircleAvatar(child: Text(widget.typeCode(order))),
-              title: Row(children: [
-                Expanded(child: Text(machine?.displayName ?? (order.machineId.isEmpty ? 'No machine' : order.machineId), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                if (order.lateEntry) ...[const SizedBox(width: 6), _lateEntryBadge()],
-              ]),
-              subtitle: Text([
-                if (widget.typeDetail(order).isNotEmpty) widget.typeDetail(order),
-                widget.formatDate(order.completedAt),
-                widget.duration(order.durationSeconds),
-              ].join(' · ')),
-              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-              children: [
-                if (techNames.isNotEmpty) ListTile(dense: true, leading: const Icon(Icons.engineering_outlined), title: Text('JO: ${techNames.join(', ')}')),
-                if (helperNames.isNotEmpty) ListTile(dense: true, leading: const Icon(Icons.handyman_outlined), title: Text('CF: ${helperNames.join(', ')}')),
-                if (machine?.equipmentId.isNotEmpty == true) ListTile(dense: true, leading: const Icon(Icons.badge_outlined), title: Text('Equipment: ${machine!.equipmentId}')),
-                if (order.description.isNotEmpty) ListTile(dense: true, leading: const Icon(Icons.notes_outlined), title: Text('Start remarks: ${order.description}')),
-                if (order.completionRemarks.isNotEmpty) ListTile(dense: true, leading: const Icon(Icons.check_circle_outline), title: Text('Completion remarks: ${order.completionRemarks}')),
-              ],
-            ),
+          return _CompletedTaskRow(
+            order: order,
+            machines: _machines,
+            users: _users,
+            helpers: _helpers,
+            typeDetail: widget.typeDetail(order),
+            onDeleted: () => _removeLocally(order.id),
           );
         }),
         if (_hasMore)
@@ -414,10 +350,228 @@ class _PaginatedMonthlyTasksState extends State<_PaginatedMonthlyTasks> {
   }
 }
 
+/// A tappable row for one completed task — tapping opens the full detail
+/// sheet (see showCompletedTaskDetail below), which is also where
+/// deleting it lives.
+class _CompletedTaskRow extends StatelessWidget {
+  final WorkOrder order;
+  final Map<String, Machine> machines;
+  final Map<String, AppUser> users;
+  final Map<String, Helper> helpers;
+  final String typeDetail;
+  final VoidCallback? onDeleted;
+
+  const _CompletedTaskRow({
+    required this.order,
+    required this.machines,
+    required this.users,
+    required this.helpers,
+    required this.typeDetail,
+    this.onDeleted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final machine = machines[order.machineId];
+    final techNames = order.assignedTechnicianIds.map((id) => users[id]?.name).whereType<String>().toList();
+    final helperNames = order.helperIds.map((id) => helpers[id]?.name).whereType<String>().toList();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(child: Text(taskTypeCode(order.type))),
+        title: Row(children: [
+          Expanded(child: Text(machine?.fullLabel ?? (order.machineId.isEmpty ? 'No machine' : order.machineId), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          if (order.lateEntry) ...[const SizedBox(width: 6), lateEntryBadge()],
+        ]),
+        subtitle: Text([
+          if (typeDetail.isNotEmpty) typeDetail,
+          formatDateTime12h(order.completedAt),
+        ].join(' · ')),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => showCompletedTaskDetail(
+          context,
+          order: order,
+          machine: machine,
+          technicianNames: techNames,
+          helperNames: helperNames,
+          onDeleted: onDeleted,
+        ),
+      ),
+    );
+  }
+}
+
+/// Shows the full details of a completed task in a bottom sheet, with a
+/// Delete action (confirmed before it actually deletes). Shared by the
+/// admin's completed-tasks list and the home dashboard's today widget so
+/// both present the same detail view.
+Future<void> showCompletedTaskDetail(
+  BuildContext context, {
+  required WorkOrder order,
+  required Machine? machine,
+  required List<String> technicianNames,
+  required List<String> helperNames,
+  VoidCallback? onDeleted,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheetContext) => _CompletedTaskDetailSheet(
+      order: order,
+      machine: machine,
+      technicianNames: technicianNames,
+      helperNames: helperNames,
+      onDeleted: onDeleted,
+    ),
+  );
+}
+
+class _CompletedTaskDetailSheet extends StatefulWidget {
+  final WorkOrder order;
+  final Machine? machine;
+  final List<String> technicianNames;
+  final List<String> helperNames;
+  final VoidCallback? onDeleted;
+
+  const _CompletedTaskDetailSheet({
+    required this.order,
+    required this.machine,
+    required this.technicianNames,
+    required this.helperNames,
+    this.onDeleted,
+  });
+
+  @override
+  State<_CompletedTaskDetailSheet> createState() => _CompletedTaskDetailSheetState();
+}
+
+class _CompletedTaskDetailSheetState extends State<_CompletedTaskDetailSheet> {
+  bool _isDeleting = false;
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete this task?'),
+        content: const Text('This permanently deletes the record. This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isDeleting = true);
+    try {
+      await FirebaseFirestore.instance.collection('work_orders').doc(widget.order.id).delete();
+      widget.onDeleted?.call();
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isDeleting = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final order = widget.order;
+    final machine = widget.machine;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(children: [
+                CircleAvatar(child: Text(taskTypeCode(order.type))),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    machine?.fullLabel ?? (order.machineId.isEmpty ? 'No machine' : order.machineId),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (order.lateEntry) ...[const SizedBox(width: 6), lateEntryBadge()],
+              ]),
+              const SizedBox(height: 14),
+              if (order.groupMachineIds.isNotEmpty) _detailRow('Other units', order.groupMachineIds.join(', ')),
+              if (machine != null && machine.equipmentId.isNotEmpty) _detailRow('Equipment ID', machine.equipmentId),
+              _detailRow('Type', taskTypeName(order.type)),
+              if (order.preventiveTypes.isNotEmpty) _detailRow('Preventive type', order.preventiveTypes.join(', ')),
+              if (widget.technicianNames.isNotEmpty) _detailRow('Junior Officer(s)', widget.technicianNames.join(', ')),
+              if (widget.helperNames.isNotEmpty) _detailRow('CF(s)', widget.helperNames.join(', ')),
+              _detailRow('Started', formatDateTime12h(order.startedAt)),
+              _detailRow('Completed', formatDateTime12h(order.completedAt)),
+              _detailRow('Duration', _duration(order.durationSeconds)),
+              if (order.description.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text('Starting remarks', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.muted)),
+                const SizedBox(height: 2),
+                Text(order.description.trim()),
+              ],
+              if (order.completionRemarks.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text('Completion remarks', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.muted)),
+                const SizedBox(height: 2),
+                Text(order.completionRemarks.trim()),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isDeleting ? null : _delete,
+                  icon: _isDeleting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.delete_outline),
+                  label: const Text('Delete task'),
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger, side: const BorderSide(color: AppColors.danger)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: RichText(
+        text: TextSpan(
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 14),
+          children: [
+            TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
+            TextSpan(text: value),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _duration(int? seconds) {
+    if (seconds == null || seconds < 0) return '—';
+    final d = Duration(seconds: seconds);
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    if (h > 0) return '${h}h ${m}m';
+    if (m > 0) return '${m}m ${s}s';
+    return '${s}s';
+  }
+}
+
 /// Small "Late Entry" badge shown next to a task that was typed in after
 /// the fact (see LateEntryScreen) rather than tracked live, so admin can
 /// tell the recorded times were a JO's recollection, not a live capture.
-Widget _lateEntryBadge() {
+Widget lateEntryBadge() {
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
     decoration: BoxDecoration(

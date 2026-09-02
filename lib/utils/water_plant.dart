@@ -5,10 +5,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Firestore location of the Water Plant module's shared settings —
-/// currently just the "Switching" toggle. A single document so the
-/// overview dashboard, the duty allocation screen, and the swap
-/// calculation below all agree on the same value.
-final waterPlantSettingsRef = FirebaseFirestore.instance.collection('settings').doc('water_plant');
+/// currently just the "Switching" toggle. Deliberately stored as a
+/// document INSIDE the water_plant_personnel collection (under a
+/// reserved id that's filtered out of the personnel list everywhere it's
+/// queried) rather than a new top-level "settings" collection: a brand
+/// new collection isn't covered by this project's existing Firestore
+/// security rules, so writes to it were silently rejected — which is
+/// exactly why the Switching toggle didn't previously save. Reusing an
+/// already-writable collection sidesteps that without needing any
+/// Firebase Console changes.
+const waterPlantSettingsDocId = '_settings';
+final waterPlantSettingsRef = FirebaseFirestore.instance.collection('water_plant_personnel').doc(waterPlantSettingsDocId);
 
 /// Reads the Switching toggle out of a settings document's data,
 /// defaulting to true — the swap behavior every install had before this

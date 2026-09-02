@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/app_user.dart';
@@ -5,21 +7,85 @@ import '../models/helper.dart';
 import '../models/machine.dart';
 import '../models/work_order.dart';
 import '../widgets_root_back_scope.dart';
+import '../utils/date_format.dart';
+import '../utils/machine_group.dart';
 import '../utils/task_type.dart';
 import '../utils/offline_commit.dart';
-import 'assign_helper_task_screen.dart';
 import 'my_cf_assignments_screen.dart';
 import 'late_entry_screen.dart';
 import '../utils/app_colors.dart';
 
-class TechnicianScreen extends StatelessWidget {
+String _todayKey([DateTime? now]) {
+  final n = now ?? DateTime.now();
+  return '${n.year}-${n.month.toString().padLeft(2, '0')}-${n.day.toString().padLeft(2, '0')}';
+}
+
+class TechnicianScreen extends StatefulWidget {
   final AppUser user;
   final VoidCallback onLogout;
 
   const TechnicianScreen({super.key, required this.user, required this.onLogout});
 
+  @override
+  State<TechnicianScreen> createState() => _TechnicianScreenState();
+}
+
+class _TechnicianScreenState extends State<TechnicianScreen> {
+  bool _checkedMandatoryStatus = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Runs exactly once per app session (this State object persists
+    // across the user-doc stream updates that recreate widget.user, so
+    // this never re-fires just because dutyStatus changed) — matching
+    // "first login of the day" rather than "every time anything reloads".
+    final now = DateTime.now();
+    final needsPrompt = now.hour >= 8 && widget.user.dutyStatusDate != _todayKey(now);
+    _checkedMandatoryStatus = true;
+    if (needsPrompt) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showMandatoryStatusDialog());
+    }
+  }
+
+  Future<void> _showMandatoryStatusDialog() async {
+    if (!mounted) return;
+    final assigned = widget.user.status == 'assigned';
+    final choice = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: SimpleDialog(
+          title: const Text("Set today's status"),
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Text("Please confirm your status for today before continuing."),
+            ),
+            SimpleDialogOption(onPressed: () => Navigator.pop(context, 'day'), child: const ListTile(leading: Icon(Icons.wb_sunny_outlined), title: Text('Day'))),
+            SimpleDialogOption(onPressed: () => Navigator.pop(context, 'night'), child: const ListTile(leading: Icon(Icons.nightlight_outlined), title: Text('Night'))),
+            if (!assigned) SimpleDialogOption(onPressed: () => Navigator.pop(context, 'on_leave'), child: const ListTile(leading: Icon(Icons.event_busy_outlined), title: Text('On-leave'))),
+          ],
+        ),
+      ),
+    );
+    if (choice == null) {
+      // Non-dismissable by design — canPop:false plus no barrier dismiss
+      // means this shouldn't happen, but re-prompt just in case rather
+      // than silently letting the day go unset.
+      _showMandatoryStatusDialog();
+      return;
+    }
+    await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).update({
+      'dutyStatus': choice,
+      'status': choice == 'on_leave' ? 'on_leave' : (assigned ? 'assigned' : 'available'),
+      'dutyStatusDate': _todayKey(),
+    });
+  }
+
   Future<void> _setDutyStatus(BuildContext context) async {
-    if (user.status == 'assigned') {
+    if (widget.user.status == 'assigned') {
       final choice = await showDialog<String>(
         context: context,
         builder: (context) => SimpleDialog(
@@ -31,7 +97,7 @@ class TechnicianScreen extends StatelessWidget {
         ),
       );
       if (choice != null) {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({'dutyStatus': choice});
+        await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).update({'dutyStatus': choice, 'dutyStatusDate': _todayKey()});
       }
       return;
     }
@@ -48,14 +114,16 @@ class TechnicianScreen extends StatelessWidget {
       ),
     );
     if (choice == null) return;
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+    await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).update({
       'dutyStatus': choice,
       'status': choice == 'on_leave' ? 'on_leave' : 'available',
+      'dutyStatusDate': _todayKey(),
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final user = widget.user;
     return RootBackScope(
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         // A JO can now run several tasks at once, so "what's running" is
@@ -81,13 +149,13 @@ class TechnicianScreen extends StatelessWidget {
           if (orders.isEmpty) {
             return Scaffold(
               appBar: AppBar(
-                title: const Text('Junior Officer Dashboard'),
+                title: const _DigitalClock(),
                 actions: [
                   IconButton(icon: const Icon(Icons.toggle_on_outlined), tooltip: 'Set Status', onPressed: () => _setDutyStatus(context)),
-                  IconButton(icon: const Icon(Icons.logout), tooltip: 'Log out', onPressed: onLogout),
+                  IconButton(icon: const Icon(Icons.logout), tooltip: 'Log out', onPressed: widget.onLogout),
                 ],
               ),
-              body: _TechnicianHome(uid: user.uid, user: user, onSetStatus: () => _setDutyStatus(context)),
+              body: _TechnicianHome(uid: user.uid, user: user),
             );
           }
 
@@ -95,7 +163,7 @@ class TechnicianScreen extends StatelessWidget {
             user: user,
             orders: orders,
             onSetStatus: () => _setDutyStatus(context),
-            onLogout: onLogout,
+            onLogout: widget.onLogout,
           );
         },
       ),
@@ -103,11 +171,98 @@ class TechnicianScreen extends StatelessWidget {
   }
 }
 
+// A live-updating clock shown instead of a static "Junior Officer
+// Dashboard" title — small, low-effort touch that also makes the
+// dashboard double as a wall clock during a shift.
+class _DigitalClock extends StatefulWidget {
+  const _DigitalClock();
+  @override
+  State<_DigitalClock> createState() => _DigitalClockState();
+}
+
+class _DigitalClockState extends State<_DigitalClock> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final period = now.hour >= 12 ? 'PM' : 'AM';
+    final hour12 = now.hour % 12 == 0 ? 12 : now.hour % 12;
+    String two(int n) => n.toString().padLeft(2, '0');
+    return Text(
+      '$hour12:${two(now.minute)}:${two(now.second)} $period',
+      style: const TextStyle(fontWeight: FontWeight.w700, fontFeatures: [FontFeature.tabularFigures()]),
+    );
+  }
+}
+
+// Today's completed-task count and total engaged time for this JO — a
+// small positive nudge on their own dashboard, not shown to anyone else.
+class _TodayStatsCard extends StatelessWidget {
+  final String uid;
+  const _TodayStatsCard({required this.uid});
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('work_orders')
+          .where('assignedTechnicianIds', arrayContains: uid)
+          .where('status', isEqualTo: 'completed')
+          .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
+          .snapshots(),
+      builder: (context, snapshot) {
+        final orders = (snapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data())).toList();
+        final count = orders.length;
+        final totalSeconds = orders.fold<int>(0, (sum, o) => sum + (o.durationSeconds ?? 0));
+        final hours = totalSeconds ~/ 3600;
+        final minutes = (totalSeconds % 3600) ~/ 60;
+        final engagedLabel = hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
+        return Card(
+          color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.35),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+            child: Row(children: [
+              Expanded(child: _stat(context, Icons.task_alt, '$count', count == 1 ? 'task today' : 'tasks today')),
+              SizedBox(height: 42, child: VerticalDivider(width: 1, color: Theme.of(context).dividerColor)),
+              Expanded(child: _stat(context, Icons.timer_outlined, engagedLabel, 'engaged today')),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _stat(BuildContext context, IconData icon, String value, String label) {
+    return Column(children: [
+      Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
+      const SizedBox(height: 4),
+      Text(value, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+      Text(label, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+    ]);
+  }
+}
+
 class _TechnicianHome extends StatelessWidget {
   final String uid;
   final AppUser user;
-  final VoidCallback onSetStatus;
-  const _TechnicianHome({required this.uid, required this.user, required this.onSetStatus});
+  const _TechnicianHome({required this.uid, required this.user});
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +273,9 @@ class _TechnicianHome extends StatelessWidget {
         Text('Hello, ${user.name}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         Text('Status: ${_dutyLabel(user.dutyStatus)}', style: TextStyle(color: onLeave ? AppColors.danger : AppColors.success, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 24),
+        const SizedBox(height: 18),
+        _TodayStatsCard(uid: uid),
+        const SizedBox(height: 18),
         Card(
           child: ListTile(
             leading: const CircleAvatar(child: Icon(Icons.play_arrow)),
@@ -133,21 +290,10 @@ class _TechnicianHome extends StatelessWidget {
         Card(
           child: ListTile(
             leading: const CircleAvatar(child: Icon(Icons.person_add_alt_1)),
-            title: const Text('Assign a CF', style: TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(onLeave ? 'Unavailable while on-leave.' : 'Send a CF to a machine/task. You stay available.'),
+            title: const Text('CF Assignments', style: TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: const Text('Assign a CF, or close out ones you already assigned.'),
             trailing: const Icon(Icons.chevron_right),
-            enabled: !onLeave,
-            onTap: onLeave ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AssignHelperTaskScreen(uid: uid))),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.playlist_add_check)),
-            title: const Text('My CF Assignments', style: TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: const Text('Close out CF tasks you assigned.'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MyCfAssignmentsScreen(uid: uid))),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CfAssignmentsScreen(uid: uid))),
           ),
         ),
         const SizedBox(height: 12),
@@ -158,16 +304,6 @@ class _TechnicianHome extends StatelessWidget {
             subtitle: const Text('Log a task you couldn\'t enter at the time.'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LateEntryScreen(uid: uid))),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.toggle_on_outlined)),
-            title: const Text('Set Status', style: TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: const Text('Day, Night or On-leave'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: onSetStatus,
           ),
         ),
       ],
@@ -220,11 +356,8 @@ class _RunningTasksTabs extends StatelessWidget {
               tooltip: 'More',
               onSelected: (value) {
                 switch (value) {
-                  case 'assign_cf':
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => AssignHelperTaskScreen(uid: uid)));
-                    break;
-                  case 'my_cf':
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => MyCfAssignmentsScreen(uid: uid)));
+                  case 'cf':
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => CfAssignmentsScreen(uid: uid)));
                     break;
                   case 'late_entry':
                     Navigator.of(context).push(MaterialPageRoute(builder: (_) => LateEntryScreen(uid: uid)));
@@ -238,8 +371,7 @@ class _RunningTasksTabs extends StatelessWidget {
                 }
               },
               itemBuilder: (context) => const [
-                PopupMenuItem(value: 'assign_cf', child: Text('Assign a CF')),
-                PopupMenuItem(value: 'my_cf', child: Text('My CF Assignments')),
+                PopupMenuItem(value: 'cf', child: Text('CF Assignments')),
                 PopupMenuItem(value: 'late_entry', child: Text('Add Past Task')),
                 PopupMenuItem(value: 'status', child: Text('Set Status')),
                 PopupMenuDivider(),
@@ -280,6 +412,7 @@ class _StartTaskPage extends StatefulWidget {
 class _StartTaskPageState extends State<_StartTaskPage> {
   String? _selectedMachineId;
   Machine? _selectedMachine;
+  Set<String> _selectedGroupUnitIds = <String>{};
   String _type = 'preventive';
   final Set<String> _preventiveTypes = <String>{};
   final _remarksController = TextEditingController();
@@ -313,11 +446,21 @@ class _StartTaskPageState extends State<_StartTaskPage> {
     return matches;
   }
 
-  void _selectMachine(Machine machine) {
+  Future<void> _selectMachine(Machine machine, List<Machine> allMachines) async {
+    final resolved = resolveGroup(machine, allMachines);
+    var groupUnitIds = <String>{};
+    var effective = machine;
+    if (resolved != null) {
+      final picked = await pickGroupUnits(context, tapped: machine, resolved: resolved);
+      if (picked == null) return; // cancelled — leave prior selection untouched
+      groupUnitIds = picked;
+      effective = resolved.main;
+    }
     setState(() {
-      _selectedMachine = machine;
-      _selectedMachineId = machine.id;
-      _machineSearchController.text = machine.displayName;
+      _selectedMachine = effective;
+      _selectedMachineId = effective.id;
+      _selectedGroupUnitIds = groupUnitIds;
+      _machineSearchController.text = effective.displayName;
       _machineSearchController.selection = TextSelection.fromPosition(TextPosition(offset: _machineSearchController.text.length));
       _showSuggestions = false;
       _errorText = null;
@@ -346,8 +489,8 @@ class _StartTaskPageState extends State<_StartTaskPage> {
       'type': _type,
       'preventiveTypes': _type == 'preventive' ? _preventiveTypes.toList() : <String>[],
       'machineId': _selectedMachineId,
+      'groupMachineIds': _selectedGroupUnitIds.toList(),
       'description': _remarksController.text.trim(),
-      'priority': 'medium',
       'status': 'in_progress',
       'assignedTechnicianIds': [widget.uid],
       // CFs are no longer picked when starting a task — a JO adds them
@@ -385,9 +528,9 @@ class _StartTaskPageState extends State<_StartTaskPage> {
           return Column(children: [
             TextField(
               controller: _machineSearchController,
-              onChanged: (v) => setState(() { _selectedMachine = null; _selectedMachineId = null; _showSuggestions = v.trim().isNotEmpty; }),
+              onChanged: (v) => setState(() { _selectedMachine = null; _selectedMachineId = null; _selectedGroupUnitIds = {}; _showSuggestions = v.trim().isNotEmpty; }),
               onTap: () => setState(() => _showSuggestions = _machineSearchController.text.trim().isNotEmpty),
-              decoration: InputDecoration(labelText: _type == 'others' ? 'Search machine (optional)' : 'Search machine', hintText: 'Machine name or equipment ID', prefixIcon: const Icon(Icons.search), suffixIcon: _selectedMachine == null ? null : IconButton(onPressed: () => setState(() { _selectedMachine = null; _selectedMachineId = null; _machineSearchController.clear(); }), icon: const Icon(Icons.clear)), border: const OutlineInputBorder()),
+              decoration: InputDecoration(labelText: _type == 'others' ? 'Search machine (optional)' : 'Search machine', hintText: 'Machine name or equipment ID', prefixIcon: const Icon(Icons.search), suffixIcon: _selectedMachine == null ? null : IconButton(onPressed: () => setState(() { _selectedMachine = null; _selectedMachineId = null; _selectedGroupUnitIds = {}; _machineSearchController.clear(); }), icon: const Icon(Icons.clear)), border: const OutlineInputBorder()),
             ),
             if (_showSuggestions && suggestions.isNotEmpty) Card(child: ConstrainedBox(
               // Shows about 5 rows before scrolling, rather than
@@ -395,10 +538,15 @@ class _StartTaskPageState extends State<_StartTaskPage> {
               constraints: const BoxConstraints(maxHeight: 320),
               child: ListView(
                 shrinkWrap: true,
-                children: suggestions.map((m) => ListTile(title: Text(m.displayName), subtitle: Text(m.equipmentId), onTap: () => _selectMachine(m))).toList(),
+                children: suggestions.map((m) => ListTile(title: Text(m.displayName), subtitle: Text(m.equipmentId), onTap: () => _selectMachine(m, machines))).toList(),
               ),
             )),
-            if (_selectedMachine != null) Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(top: 8), child: Text('Selected: ${_selectedMachine!.displayName}', style: const TextStyle(fontWeight: FontWeight.w600)))),
+            if (_selectedMachine != null) Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(top: 8), child: Text(
+              _selectedGroupUnitIds.isEmpty
+                  ? 'Selected: ${_selectedMachine!.displayName}'
+                  : 'Selected: ${_selectedMachine!.displayName} + ${_selectedGroupUnitIds.length} other unit(s)',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ))),
           ]);
         }),
         const SizedBox(height: 20),
@@ -646,7 +794,9 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
                   Expanded(child: Text('Machine: ${machine?.displayName ?? (order.machineId.isEmpty ? 'None' : order.machineId)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
                 ]),
                 if (machine?.equipmentId.isNotEmpty == true) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Equipment ID: ${machine!.equipmentId}')),
+                if (order.groupMachineIds.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Other units: ${order.groupMachineIds.join(', ')}')),
                 if (order.type == 'preventive' && order.preventiveTypes.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Preventive type: ${order.preventiveTypes.join(', ')}')),
+                if (order.startedAt != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Started: ${formatDateTime12h(order.startedAt)}')),
                 if (order.description.isNotEmpty) ...[const SizedBox(height: 8), Text('Starting remarks: ${order.description}')],
                 const SizedBox(height: 18),
                 Row(children: [

@@ -69,6 +69,7 @@ class _WaterPlantDutyAllocationScreenState extends State<WaterPlantDutyAllocatio
                 return Center(child: Text('Unable to load: ${snapshot.error}'));
               }
               final people = (snapshot.data?.docs ?? [])
+                  .where((d) => d.id != waterPlantSettingsDocId)
                   .map((d) => WaterPlantPersonnel.fromMap(d.id, d.data()))
                   .toList();
 

@@ -108,9 +108,12 @@ class _MachinesScreenState extends State<MachinesScreen> {
                               ),
                               title: Text(machine.displayName),
                               subtitle: Text(
-                                machine.brand.isEmpty
-                                    ? '${machine.equipmentId} · ${machine.category}'
-                                    : '${machine.equipmentId} · ${machine.equipmentName} · ${machine.category}',
+                                [
+                                  machine.equipmentId,
+                                  if (machine.brand.isNotEmpty) machine.equipmentName,
+                                  machine.category,
+                                  if (machine.isGrouped) 'Group: ${machine.group}',
+                                ].join(' · '),
                               ),
                               trailing: const Icon(Icons.chevron_right),
                               onTap: () => _showMachineForm(context, machine: machine),
@@ -131,7 +134,8 @@ class _MachinesScreenState extends State<MachinesScreen> {
     return machine.equipmentName.toLowerCase().contains(_query) ||
         machine.equipmentId.toLowerCase().contains(_query) ||
         machine.brand.toLowerCase().contains(_query) ||
-        machine.category.toLowerCase().contains(_query);
+        machine.category.toLowerCase().contains(_query) ||
+        machine.group.toLowerCase().contains(_query);
   }
 
   Color _categoryColor(String category) {
@@ -166,6 +170,7 @@ class _MachineFormSheetState extends State<_MachineFormSheet> {
   late final TextEditingController _equipmentIdController;
   late final TextEditingController _equipmentNameController;
   late final TextEditingController _brandController;
+  late final TextEditingController _groupController;
   late String _category;
   bool _isSaving = false;
   String? _errorText;
@@ -179,6 +184,7 @@ class _MachineFormSheetState extends State<_MachineFormSheet> {
     _equipmentIdController = TextEditingController(text: widget.machine?.equipmentId ?? '');
     _equipmentNameController = TextEditingController(text: widget.machine?.equipmentName ?? '');
     _brandController = TextEditingController(text: widget.machine?.brand ?? '');
+    _groupController = TextEditingController(text: (widget.machine?.group ?? 'N/A') == 'N/A' ? '' : widget.machine!.group);
     _category = widget.machine?.category ?? 'Production';
   }
 
@@ -187,6 +193,7 @@ class _MachineFormSheetState extends State<_MachineFormSheet> {
     _equipmentIdController.dispose();
     _equipmentNameController.dispose();
     _brandController.dispose();
+    _groupController.dispose();
     super.dispose();
   }
 
@@ -210,6 +217,7 @@ class _MachineFormSheetState extends State<_MachineFormSheet> {
       'equipmentName': _equipmentNameController.text.trim(),
       'brand': _brandController.text.trim(),
       'category': _category,
+      'group': _groupController.text.trim().isEmpty ? 'N/A' : _groupController.text.trim(),
     };
 
     try {
@@ -326,6 +334,15 @@ class _MachineFormSheetState extends State<_MachineFormSheet> {
               decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
               items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
               onChanged: (value) => setState(() => _category = value!),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _groupController,
+              decoration: const InputDecoration(
+                labelText: 'Group (optional)',
+                helperText: 'e.g. "Tablet Compression-01" — leave blank if not part of a group',
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 16),
             if (_errorText != null)

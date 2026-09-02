@@ -1,22 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'models/app_user.dart';
+import 'models/helper.dart';
 import 'models/machine.dart';
-import 'utils/app_colors.dart';
 import 'utils/task_type.dart';
 import 'models/work_order.dart';
 import 'screens/completed_tasks_screen.dart';
-
-Widget _lateEntryChip() {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-    decoration: BoxDecoration(
-      color: AppColors.warning.withValues(alpha: 0.15),
-      borderRadius: BorderRadius.circular(6),
-    ),
-    child: const Text('Late', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.warning)),
-  );
-}
 
 class CompletedTasksSection extends StatelessWidget {
   const CompletedTasksSection({super.key});
@@ -44,20 +33,46 @@ class CompletedTasksSection extends StatelessWidget {
         return Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [const Expanded(child: Text('Completed Tasks · Today', style: TextStyle(fontWeight: FontWeight.bold))), TextButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CompletedTasksScreen())), child: const Text('View History'))]),
           if (orders.isEmpty) const Padding(padding: EdgeInsets.all(8), child: Text('No task completed today.'))
-          else FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            future: FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'technician').get(),
-            builder: (context, techSnapshot) => FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              future: FirebaseFirestore.instance.collection('machines').get(),
-              builder: (context, machineSnapshot) {
-                final techs = {for (final d in (techSnapshot.data?.docs ?? [])) d.id: AppUser.fromMap(d.id, d.data())};
-                final machines = {for (final d in (machineSnapshot.data?.docs ?? [])) d.id: Machine.fromMap(d.id, d.data())};
-                return Column(children: orders.take(8).map((o) {
-                  final machine = machines[o.machineId];
-                  final names = o.assignedTechnicianIds.map((id) => techs[id]?.name).whereType<String>().toList();
-                  return ListTile(dense: true, contentPadding: EdgeInsets.zero, leading: CircleAvatar(radius: 16, child: Text(_type(o))), title: Text(machine?.displayName ?? (o.machineId.isEmpty ? 'No machine' : o.machineId), maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text('${names.join(', ')} · ${_duration(o.durationSeconds)}'), trailing: o.lateEntry ? _lateEntryChip() : null);
-                }).toList());
-              },
-            ),
+          else FutureBuilder<List<QuerySnapshot<Map<String, dynamic>>>>(
+            future: Future.wait([
+              FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'technician').get(),
+              FirebaseFirestore.instance.collection('machines').get(),
+              FirebaseFirestore.instance.collection('helpers').get(),
+            ]),
+            builder: (context, peopleSnapshot) {
+              if (!peopleSnapshot.hasData) return const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator());
+              final techs = {for (final d in peopleSnapshot.data![0].docs) d.id: AppUser.fromMap(d.id, d.data())};
+              final machines = {for (final d in peopleSnapshot.data![1].docs) d.id: Machine.fromMap(d.id, d.data())};
+              final helpers = {for (final d in peopleSnapshot.data![2].docs) d.id: Helper.fromMap(d.id, d.data())};
+              // Shows about 5 rows before scrolling, rather than
+              // truncating the rest of today's completed tasks away.
+              return ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 340),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: orders.map((o) {
+                    final machine = machines[o.machineId];
+                    final names = o.assignedTechnicianIds.map((id) => techs[id]?.name).whereType<String>().toList();
+                    final helperNames = o.helperIds.map((id) => helpers[id]?.name).whereType<String>().toList();
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(radius: 16, child: Text(_type(o))),
+                      title: Text(machine?.fullLabel ?? (o.machineId.isEmpty ? 'No machine' : o.machineId), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text('${names.join(', ')} · ${_duration(o.durationSeconds)}'),
+                      trailing: o.lateEntry ? lateEntryBadge() : const Icon(Icons.chevron_right, size: 18),
+                      onTap: () => showCompletedTaskDetail(
+                        context,
+                        order: o,
+                        machine: machine,
+                        technicianNames: names,
+                        helperNames: helperNames,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              );
+            },
           ),
         ])));
       },

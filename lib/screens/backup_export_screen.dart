@@ -16,14 +16,33 @@ enum _RangeMode { thisWeek, thisMonth, custom }
 /// One-tap CSV backup of completed tasks for a chosen period — this
 /// week, this month, or a custom range — for admin to keep an offline
 /// copy or open in Excel/Sheets.
-class BackupExportScreen extends StatefulWidget {
+///
+/// Thin Scaffold wrapper around BackupExportBody, so it can be pushed as
+/// its own screen (Android admin nav) while the web admin shell embeds
+/// BackupExportBody directly without stacking two AppBars.
+class BackupExportScreen extends StatelessWidget {
   const BackupExportScreen({super.key});
 
   @override
-  State<BackupExportScreen> createState() => _BackupExportScreenState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Backup / Export')),
+      body: const BackupExportBody(),
+    );
+  }
 }
 
-class _BackupExportScreenState extends State<BackupExportScreen> {
+/// The actual range picker + Export button, with no Scaffold or AppBar
+/// of its own — embed this directly wherever a persistent shell (like
+/// the web admin sidebar layout) already provides those.
+class BackupExportBody extends StatefulWidget {
+  const BackupExportBody({super.key});
+
+  @override
+  State<BackupExportBody> createState() => _BackupExportBodyState();
+}
+
+class _BackupExportBodyState extends State<BackupExportBody> {
   _RangeMode _mode = _RangeMode.thisWeek;
   DateTime _customStart = DateTime.now().subtract(const Duration(days: 7));
   DateTime _customEnd = DateTime.now();
@@ -124,7 +143,12 @@ class _BackupExportScreenState extends State<BackupExportScreen> {
         return;
       }
 
-      final bytes = Uint8List.fromList(utf8.encode(csv));
+      // Excel doesn't assume UTF-8 for a plain CSV — without a BOM it
+      // guesses the system codepage and mangles anything outside basic
+      // ASCII, including Bengali remarks that display fine in the app.
+      // Prepending the UTF-8 BOM makes Excel (and Sheets) detect the
+      // encoding correctly.
+      final bytes = Uint8List.fromList(utf8.encode('\uFEFF$csv'));
       final file = XFile.fromData(bytes, mimeType: 'text/csv', name: fileName);
       await file.saveTo(location.path);
 
@@ -144,9 +168,7 @@ class _BackupExportScreenState extends State<BackupExportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Backup / Export')),
-      body: ListView(
+    return ListView(
         padding: const EdgeInsets.all(20),
         children: [
           const Text('Range', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -205,7 +227,6 @@ class _BackupExportScreenState extends State<BackupExportScreen> {
             Text(_statusText!, style: const TextStyle(color: AppColors.muted)),
           ],
         ],
-      ),
     );
   }
 }
