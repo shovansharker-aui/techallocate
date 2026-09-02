@@ -66,6 +66,13 @@ class _AdminWebDashboardScreenState extends State<AdminWebDashboardScreen> {
         ])),
       ]),
       drawer: compact ? Drawer(child: _sidebar(context)) : null,
+      // Flutter's default edge-swipe zone for opening a drawer is a thin
+      // sliver right at the screen edge — barely triggerable on a touch
+      // screen, and easy to lose to a browser's own edge-swipe gestures
+      // on web/PWA. Widening it makes the swipe-to-open gesture reliable
+      // on the web build the same way it already is on native Android.
+      drawerEdgeDragWidth: compact ? MediaQuery.sizeOf(context).width * 0.5 : null,
+      drawerEnableOpenDragGesture: compact,
     );
   }
 

@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'widgets_live_activity_grid.dart';
 import 'widgets_completed_tasks_section.dart';
@@ -57,8 +56,12 @@ class AdminMonitoringPanel extends StatelessWidget {
                   const DailySummaryCard(),
                   const SizedBox(height: 12),
                   Builder(builder: (context) {
-                    final isAndroid = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-                    final sideBySide = isAndroid || MediaQuery.sizeOf(context).width >= 650;
+                    // Always side-by-side, matching the native Android
+                    // app exactly — previously this fell back to
+                    // stacking on any web viewport under 650px, which
+                    // meant a normal phone-width PWA/mobile-web session
+                    // (usually ~360-430px) always got the stacked
+                    // layout even though the native app never does.
                     final jo = _summaryCard(
                       'Person Available',
                       Icons.groups_outlined,
@@ -76,9 +79,6 @@ class AdminMonitoringPanel extends StatelessWidget {
                       _SummaryRow('CO', '$coCount', onTap: coCount == 0 ? null : () => _showTasksOfType(context, 'changeover', 'Changeover tasks')),
                       _SummaryRow('OT', '$otCount', onTap: otCount == 0 ? null : () => _showTasksOfType(context, 'others', 'Other tasks')),
                     ], twoColumn: true);
-                    if (!sideBySide) {
-                      return Column(children: [jo, const SizedBox(height: 12), task]);
-                    }
                     // IntrinsicHeight makes both cards match the taller one's
                     // height without needing a hardcoded aspect ratio — a
                     // fixed ratio broke as soon as one card had more rows
