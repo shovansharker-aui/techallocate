@@ -64,6 +64,21 @@ class WaterPlantOverviewBody extends StatelessWidget {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: waterPlantSettingsRef.snapshots(),
       builder: (context, settingsSnapshot) {
+        if (settingsSnapshot.hasError) {
+          // Surfacing this rather than silently defaulting: if reads to
+          // this doc are blocked too (not just writes), the toggle would
+          // otherwise just look stuck on "On" forever with no clue why.
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Card(
+              color: AppColors.danger.withValues(alpha: 0.08),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Text('Could not load Switching setting: ${settingsSnapshot.error}'),
+              ),
+            ),
+          );
+        }
         final switchingEnabled = switchingEnabledFrom(settingsSnapshot.data?.data());
 
         return Column(
@@ -80,11 +95,21 @@ class WaterPlantOverviewBody extends StatelessWidget {
                           : 'Off — personnel stay on their morning-assigned plant all day.',
                     ),
                     value: switchingEnabled,
-                    onChanged: (value) {
-                      // Single-document write, fire-and-forget: the local
-                      // cache (and this Switch) updates instantly via the
-                      // StreamBuilder above regardless of connectivity.
-                      waterPlantSettingsRef.set({'switchingEnabled': value}, SetOptions(merge: true));
+                    onChanged: (value) async {
+                      try {
+                        // Awaited (not fire-and-forget) specifically so a
+                        // rejected write is visible instead of silently
+                        // reverting next time this doc is re-read — that
+                        // silent-revert is exactly what "the toggle
+                        // doesn't work" looks like from the outside.
+                        await waterPlantSettingsRef.set({'switchingEnabled': value}, SetOptions(merge: true));
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Could not save: $e'), duration: const Duration(seconds: 6)),
+                          );
+                        }
+                      }
                     },
                   ),
                 ),

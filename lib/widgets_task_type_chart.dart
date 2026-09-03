@@ -189,9 +189,16 @@ class _TaskTypeBreakdownCardState extends State<TaskTypeBreakdownCard> {
                                       left: 0,
                                       child: _ChartArrow(
                                         icon: Icons.chevron_left,
-                                        onTap: _page > 0
-                                            ? () => _pageController.previousPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut)
-                                            : null,
+                                        // Wraps around instead of stopping at
+                                        // the first/last page — continuous
+                                        // cycling, same idea as the swipe
+                                        // gesture on touch, which also
+                                        // never really "runs out" either.
+                                        onTap: () => _pageController.animateToPage(
+                                          (_page - 1 + pages.length) % pages.length,
+                                          duration: const Duration(milliseconds: 250),
+                                          curve: Curves.easeOut,
+                                        ),
                                       ),
                                     ),
                                   if (showArrows)
@@ -199,9 +206,11 @@ class _TaskTypeBreakdownCardState extends State<TaskTypeBreakdownCard> {
                                       right: 0,
                                       child: _ChartArrow(
                                         icon: Icons.chevron_right,
-                                        onTap: _page < pages.length - 1
-                                            ? () => _pageController.nextPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut)
-                                            : null,
+                                        onTap: () => _pageController.animateToPage(
+                                          (_page + 1) % pages.length,
+                                          duration: const Duration(milliseconds: 250),
+                                          curve: Curves.easeOut,
+                                        ),
                                       ),
                                     ),
                                 ],
