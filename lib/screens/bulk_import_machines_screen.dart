@@ -132,9 +132,41 @@ class _BulkImportMachinesScreenState extends State<BulkImportMachinesScreen> {
     final validRows = _rows.where((r) => r.isValid).toList();
     if (validRows.isEmpty) return;
 
+    // The CSV is now treated as the full, authoritative equipment list —
+    // anything currently in Firestore whose Equipment ID isn't in this
+    // file gets removed, not just left stale. Figure out what that would
+    // be BEFORE writing anything, so it can be confirmed up front.
+    final machines = FirebaseFirestore.instance.collection('machines');
+    final existingSnap = await machines.get();
+    final csvIds = validRows.map((r) => r.equipmentId).toSet();
+    final toDelete = existingSnap.docs.where((d) => !csvIds.contains((d.data()['equipmentId'] ?? '').toString())).toList();
+
+    if (toDelete.isNotEmpty && mounted) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Remove missing machines?'),
+          content: Text(
+            '${toDelete.length} machine(s) currently in the master list are not in this file '
+            'and will be permanently deleted:\n\n'
+            '${toDelete.take(10).map((d) => '• ${(d.data()['equipmentName'] ?? d.id)}').join('\n')}'
+            '${toDelete.length > 10 ? '\n…and ${toDelete.length - 10} more' : ''}',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Import & Remove'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
     setState(() => _isImporting = true);
 
-    final machines = FirebaseFirestore.instance.collection('machines');
     // Firestore batches cap at 500 writes — chunk if a very large file
     // is ever imported.
     var created = 0, updated = 0;
@@ -161,10 +193,20 @@ class _BulkImportMachinesScreenState extends State<BulkImportMachinesScreen> {
       await batch.commit();
     }
 
+    for (var i = 0; i < toDelete.length; i += 400) {
+      final chunk = toDelete.skip(i).take(400);
+      final batch = FirebaseFirestore.instance.batch();
+      for (final doc in chunk) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+
     if (!mounted) return;
     setState(() {
       _isImporting = false;
-      _resultMessage = 'Done — $created machine(s) added, $updated updated.';
+      _resultMessage = 'Done — $created added, $updated updated'
+          '${toDelete.isNotEmpty ? ', ${toDelete.length} removed' : ''}.';
       _rows = [];
       _fileName = null;
     });
@@ -193,8 +235,9 @@ class _BulkImportMachinesScreenState extends State<BulkImportMachinesScreen> {
                   '"Nickname" and "Group" are optional — machines left blank in "Group" are '
                   'stored as not belonging to any group. Machines sharing the same Group value are '
                   'treated as one grouped machine (e.g. a compression unit and its deduster). '
-                  'If a machine with a matching Equipment ID '
-                  'already exists, it will be updated instead of duplicated.\n\n'
+                  'If a machine with a matching Equipment ID already exists, it will be updated instead of duplicated.\n\n'
+                  'This file becomes the full master list: any existing machine whose Equipment ID '
+                  'ISN\'T in this file will be removed (you\'ll be asked to confirm first).\n\n'
                   'Exported from Excel or Google Sheets as CSV works fine.',
                 ),
               ),
