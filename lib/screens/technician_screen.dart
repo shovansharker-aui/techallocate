@@ -731,6 +731,59 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
     }
   }
 
+  Future<void> _openTaskMenu(WorkOrder order) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.edit_outlined),
+            title: const Text('Edit Starting Remarks'),
+            onTap: () => Navigator.pop(sheetContext, 'edit_remarks'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.check_circle_outline, color: AppColors.success),
+            title: const Text('Complete Task'),
+            onTap: () => Navigator.pop(sheetContext, 'complete'),
+          ),
+        ]),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'edit_remarks') {
+      await _editStartingRemarks(order);
+    } else if (action == 'complete') {
+      await _confirmAndComplete(order);
+    }
+  }
+
+  Future<void> _editStartingRemarks(WorkOrder order) async {
+    final controller = TextEditingController(text: order.description);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Edit Starting Remarks'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 4,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Save')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null || !mounted) return;
+    try {
+      await FirebaseFirestore.instance.collection('work_orders').doc(widget.taskId).update({'description': result});
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+    }
+  }
+
   Future<void> _confirmAndComplete(WorkOrder order) async {
     final required = order.type != 'preventive';
 
@@ -806,11 +859,19 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
               Expanded(child: ListView(children: [
                 const Text('Task Running', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 18),
-                Row(children: [
-                  CircleAvatar(radius: 16, child: Text(_typeCode(order), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text('Machine: ${machine?.displayName ?? (order.machineId.isEmpty ? 'None' : order.machineId)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
-                ]),
+                InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _openTaskMenu(order),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(children: [
+                      CircleAvatar(radius: 16, child: Text(_typeCode(order), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text('Machine: ${machine?.displayName ?? (order.machineId.isEmpty ? 'None' : order.machineId)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
+                      const Icon(Icons.more_vert, color: AppColors.muted),
+                    ]),
+                  ),
+                ),
                 if (machine?.equipmentId.isNotEmpty == true) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Equipment ID: ${machine!.equipmentId}')),
                 if (order.groupMachineIds.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Other units: ${order.groupMachineIds.join(', ')}')),
                 if (order.type == 'preventive' && order.preventiveTypes.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Preventive type: ${order.preventiveTypes.join(', ')}')),
@@ -856,7 +917,6 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
                 const SizedBox(height: 18),
                 if (order.type != 'preventive') Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: .08), borderRadius: BorderRadius.circular(10)), child: const Text('Completion remarks are required for Breakdown, Calibration and Adjustment tasks.')),
               ])),
-              SizedBox(width: double.infinity, height: 50, child: FilledButton.icon(style: FilledButton.styleFrom(backgroundColor: AppColors.success, foregroundColor: Colors.white), onPressed: _isCompleting ? null : () => _confirmAndComplete(order), icon: const Icon(Icons.check_circle_outline), label: _isCompleting ? const CircularProgressIndicator(strokeWidth: 2) : const Text('Complete Task'))),
             ]));
           },
         );

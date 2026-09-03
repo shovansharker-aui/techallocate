@@ -10,6 +10,7 @@ import 'firebase_options.dart';
 import 'utils/app_colors.dart';
 import 'services/theme_service.dart';
 import 'services/chart_mode_service.dart';
+import 'services/app_version_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +43,9 @@ Future<void> main() async {
 
   await themeService.load();
   await chartModeService.load();
+  // Fire-and-forget: starts polling for a newer deployed build once
+  // Firebase is ready, without blocking the very first frame on it.
+  appVersionService.start();
 
   runApp(const TechAllocateApp());
 }
