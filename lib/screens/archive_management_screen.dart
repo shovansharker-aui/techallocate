@@ -17,7 +17,7 @@ class ArchiveManagementScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Archive Management')),
+      appBar: AppBar(title: const Text('Archive')),
       body: const ArchiveManagementBody(),
     );
   }

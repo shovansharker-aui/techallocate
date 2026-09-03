@@ -8,14 +8,17 @@ import 'admin_mobile_shell.dart';
 
 enum _AdminSection { maintenance, waterPlant, archive, settings }
 
-// The web admin shell — sidebar (desktop) / drawer (mobile web) that
-// stays on screen while switching between sections, instead of each
-// section being a full-screen route push that replaces (and hides) the
-// nav entirely. Only the four top-level sections here behave this way;
-// screens reached by drilling further in (Add Personnel, Machines, etc.)
-// still push as their own full screens with a normal back arrow — this
-// is about keeping the main sections reachable, not flattening all
-// navigation.
+// The web admin shell — sidebar (desktop) that stays on screen no matter
+// what's showing, including screens reached by drilling further in
+// (Add Personnel, Machines, Backup/Export, Clear Data, etc.). Those used
+// to push onto the app's main Navigator, which hid the sidebar entirely;
+// they now push onto a small Navigator scoped to just the content area
+// instead, so Navigator.push() calls inside those screens (unchanged,
+// no edits needed there) land in this inner Navigator automatically —
+// it's simply the nearest ancestor Navigator once content lives inside
+// it. The inner Navigator is re-keyed by section, so switching sections
+// always starts that section fresh rather than keeping stale sub-pages
+// around from whichever section you drilled into previously.
 class AdminWebDashboardScreen extends StatefulWidget {
   final AppUser user;
   final VoidCallback onLogout;
@@ -32,7 +35,7 @@ class _AdminWebDashboardScreenState extends State<AdminWebDashboardScreen> {
     switch (_section) {
       case _AdminSection.maintenance: return 'RPGF Maintenance Tracker';
       case _AdminSection.waterPlant: return 'Water Plant';
-      case _AdminSection.archive: return 'Archive Management';
+      case _AdminSection.archive: return 'Archive';
       case _AdminSection.settings: return 'Settings';
     }
   }
@@ -50,7 +53,7 @@ class _AdminWebDashboardScreenState extends State<AdminWebDashboardScreen> {
     }
   }
 
-  void _select(_AdminSection section, BuildContext context) {
+  void _select(_AdminSection section) {
     setState(() => _section = section);
   }
 
@@ -68,18 +71,25 @@ class _AdminWebDashboardScreenState extends State<AdminWebDashboardScreen> {
         SizedBox(width: 250, child: _sidebar(context)),
         Expanded(child: Column(children: [
           _topBar(context),
-          Expanded(child: _content),
+          Expanded(
+            child: Navigator(
+              key: ValueKey(_section),
+              onGenerateRoute: (settings) => MaterialPageRoute(builder: (_) => _content),
+            ),
+          ),
         ])),
       ]),
     );
   }
 
   Widget _sidebar(BuildContext context) => Material(color: Theme.of(context).colorScheme.surfaceContainerLowest, child: SafeArea(child: Column(children: [
-    const Padding(padding: EdgeInsets.fromLTRB(20, 28, 20, 24), child: Row(children: [Image(image: AssetImage('assets/logo.png'), height: 34), SizedBox(width: 12), Text('TechAllocate', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))])),
-    ListTile(selected: _section == _AdminSection.maintenance, leading: const Icon(Icons.dashboard_outlined), title: const Text('Maintenance'), onTap: () => _select(_AdminSection.maintenance, context)),
-    ListTile(selected: _section == _AdminSection.waterPlant, leading: const Icon(Icons.water_drop_outlined), title: const Text('Water Plant'), onTap: () => _select(_AdminSection.waterPlant, context)),
-    ListTile(selected: _section == _AdminSection.archive, leading: const Icon(Icons.archive_outlined), title: const Text('Archive Management'), onTap: () => _select(_AdminSection.archive, context)),
-    ListTile(selected: _section == _AdminSection.settings, leading: const Icon(Icons.settings_outlined), title: const Text('Settings'), onTap: () => _select(_AdminSection.settings, context)),
+    InkWell(
+      onTap: () => _select(_AdminSection.maintenance),
+      child: const Padding(padding: EdgeInsets.fromLTRB(20, 28, 20, 24), child: Row(children: [Image(image: AssetImage('assets/logo.png'), height: 34), SizedBox(width: 12), Text('TechAllocate', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))])),
+    ),
+    ListTile(selected: _section == _AdminSection.waterPlant, leading: const Icon(Icons.water_drop_outlined), title: const Text('Water Plant'), onTap: () => _select(_AdminSection.waterPlant)),
+    ListTile(selected: _section == _AdminSection.archive, leading: const Icon(Icons.archive_outlined), title: const Text('Archive'), onTap: () => _select(_AdminSection.archive)),
+    ListTile(selected: _section == _AdminSection.settings, leading: const Icon(Icons.settings_outlined), title: const Text('Settings'), onTap: () => _select(_AdminSection.settings)),
     const Spacer(), const Divider(height: 1),
     ListTile(leading: const CircleAvatar(child: Icon(Icons.person)), title: Text(widget.user.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
     ListTile(leading: const Icon(Icons.logout), title: const Text('Log out'), onTap: widget.onLogout),

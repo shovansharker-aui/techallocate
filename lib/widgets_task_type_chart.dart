@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'models/app_user.dart';
 import 'models/work_order.dart';
@@ -155,6 +156,12 @@ class _TaskTypeBreakdownCardState extends State<TaskTypeBreakdownCard> {
                       ),
                     ];
 
+                    // Swipe-to-change-page relies on touch drag, which
+                    // doesn't really exist with a mouse — desktop web
+                    // gets small arrow buttons instead so switching
+                    // charts is actually discoverable there.
+                    final showArrows = kIsWeb && MediaQuery.sizeOf(context).width >= 950;
+
                     return Card(
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       child: Padding(
@@ -169,10 +176,35 @@ class _TaskTypeBreakdownCardState extends State<TaskTypeBreakdownCard> {
                             ]),
                             const SizedBox(height: 8),
                             Expanded(
-                              child: PageView(
-                                controller: _pageController,
-                                onPageChanged: (i) => setState(() => _page = i),
-                                children: pages,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  PageView(
+                                    controller: _pageController,
+                                    onPageChanged: (i) => setState(() => _page = i),
+                                    children: pages,
+                                  ),
+                                  if (showArrows)
+                                    Positioned(
+                                      left: 0,
+                                      child: _ChartArrow(
+                                        icon: Icons.chevron_left,
+                                        onTap: _page > 0
+                                            ? () => _pageController.previousPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut)
+                                            : null,
+                                      ),
+                                    ),
+                                  if (showArrows)
+                                    Positioned(
+                                      right: 0,
+                                      child: _ChartArrow(
+                                        icon: Icons.chevron_right,
+                                        onTap: _page < pages.length - 1
+                                            ? () => _pageController.nextPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut)
+                                            : null,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -243,6 +275,30 @@ class _ChartPage extends StatelessWidget {
           legendBuilder(data),
         ],
       ],
+    );
+  }
+}
+
+class _ChartArrow extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  const _ChartArrow({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return Material(
+      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.85),
+      shape: const CircleBorder(),
+      elevation: enabled ? 1 : 0,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(icon, size: 20, color: enabled ? AppColors.muted : AppColors.muted.withValues(alpha: 0.25)),
+        ),
+      ),
     );
   }
 }

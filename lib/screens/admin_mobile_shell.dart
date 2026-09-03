@@ -26,7 +26,7 @@ class AdminMobileShell extends StatefulWidget {
 class _AdminMobileShellState extends State<AdminMobileShell> {
   int _index = 2; // Home
 
-  static const _titles = ['Archive Management', 'Water Plant', 'RPGF Maintenance Tracker', 'Settings', 'History'];
+  static const _titles = ['Archive', 'Water Plant', 'RPGF Maintenance Tracker', 'Settings', 'History'];
 
   Widget get _content {
     switch (_index) {
