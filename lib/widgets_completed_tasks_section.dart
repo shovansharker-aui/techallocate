@@ -41,9 +41,9 @@ class CompletedTasksSection extends StatelessWidget {
             ]),
             builder: (context, peopleSnapshot) {
               if (!peopleSnapshot.hasData) return const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator());
-              final techs = {for (final d in peopleSnapshot.data![0].docs) d.id: AppUser.fromMap(d.id, d.data())};
-              final machines = {for (final d in peopleSnapshot.data![1].docs) d.id: Machine.fromMap(d.id, d.data())};
-              final helpers = {for (final d in peopleSnapshot.data![2].docs) d.id: Helper.fromMap(d.id, d.data())};
+              final Map<String, AppUser> techs = {for (final d in peopleSnapshot.data![0].docs) d.id: AppUser.fromMap(d.id, d.data())};
+              final Map<String, Machine> machines = {for (final d in peopleSnapshot.data![1].docs) d.id: Machine.fromMap(d.id, d.data())};
+              final Map<String, Helper> helpers = {for (final d in peopleSnapshot.data![2].docs) d.id: Helper.fromMap(d.id, d.data())};
               // Shows about 5 rows before scrolling, rather than
               // truncating the rest of today's completed tasks away.
               return ConstrainedBox(

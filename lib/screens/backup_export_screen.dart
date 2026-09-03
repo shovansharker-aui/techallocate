@@ -124,9 +124,9 @@ class _BackupExportBodyState extends State<BackupExportBody> {
         firestore.collection('machines').get(),
       ]);
 
-      final technicians = {for (final d in results[0].docs) d.id: AppUser.fromMap(d.id, d.data())};
-      final helpers = {for (final d in results[1].docs) d.id: Helper.fromMap(d.id, d.data())};
-      final machines = {for (final d in results[2].docs) d.id: Machine.fromMap(d.id, d.data())};
+      final Map<String, AppUser> technicians = {for (final d in results[0].docs) d.id: AppUser.fromMap(d.id, d.data())};
+      final Map<String, Helper> helpers = {for (final d in results[1].docs) d.id: Helper.fromMap(d.id, d.data())};
+      final Map<String, Machine> machines = {for (final d in results[2].docs) d.id: Machine.fromMap(d.id, d.data())};
 
       final csv = buildWorkOrdersCsv(orders: orders, machines: machines, technicians: technicians, helpers: helpers);
       final fileName = backupFileName(range.start, range.end.subtract(const Duration(days: 1)));

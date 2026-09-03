@@ -845,7 +845,7 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
                     child: FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
                       future: FirebaseFirestore.instance.collection('machines').where(FieldPath.documentId, whereIn: order.groupMachineIds).get(),
                       builder: (context, snap) {
-                        final byId = {for (final d in (snap.data?.docs ?? [])) d.id: Machine.fromMap(d.id, d.data())};
+                        final Map<String, Machine> byId = {for (final d in (snap.data?.docs ?? [])) d.id: Machine.fromMap(d.id, d.data())};
                         final labels = order.groupMachineIds.map((id) => byId[id]?.equipmentId ?? id).join(', ');
                         return Text('Other units: $labels');
                       },

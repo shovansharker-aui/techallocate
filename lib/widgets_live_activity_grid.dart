@@ -69,9 +69,9 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                     if (techSnapshot.hasError || helperSnapshot.hasError || orderSnapshot.hasError || machineSnapshot.hasError) {
                       return const Text('Unable to load live activity.');
                     }
-                    final techs = {for (final d in (techSnapshot.data?.docs ?? [])) d.id: AppUser.fromMap(d.id, d.data())};
-                    final helpers = {for (final d in (helperSnapshot.data?.docs ?? [])) d.id: Helper.fromMap(d.id, d.data())};
-                    final machines = {for (final d in (machineSnapshot.data?.docs ?? [])) d.id: Machine.fromMap(d.id, d.data())};
+                    final Map<String, AppUser> techs = {for (final d in (techSnapshot.data?.docs ?? [])) d.id: AppUser.fromMap(d.id, d.data())};
+                    final Map<String, Helper> helpers = {for (final d in (helperSnapshot.data?.docs ?? [])) d.id: Helper.fromMap(d.id, d.data())};
+                    final Map<String, Machine> machines = {for (final d in (machineSnapshot.data?.docs ?? [])) d.id: Machine.fromMap(d.id, d.data())};
                     final orders = (orderSnapshot.data?.docs ?? [])
                         .map((d) => WorkOrder.fromMap(d.id, d.data()))
                         .where((o) => widget.filterType == null || o.type == widget.filterType)

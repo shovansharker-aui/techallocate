@@ -88,7 +88,7 @@ class _TaskTypeBreakdownCardState extends State<TaskTypeBreakdownCard> {
                   builder: (context, techSnapshot) {
                     final completedOrders = (completedSnapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data())).toList();
                     final runningOrders = (runningSnapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data())).toList();
-                    final techs = {for (final d in (techSnapshot.data?.docs ?? [])) d.id: AppUser.fromMap(d.id, d.data())};
+                    final Map<String, AppUser> techs = {for (final d in (techSnapshot.data?.docs ?? [])) d.id: AppUser.fromMap(d.id, d.data())};
 
                     // --- Page 1: by task type ---
                     final typeCounts = <String, int>{};
