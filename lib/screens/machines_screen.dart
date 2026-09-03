@@ -15,20 +15,6 @@ class _MachinesScreenState extends State<MachinesScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
 
-  // Stored once, not created inline in build(): FirebaseFirestore's
-  // .snapshots() returns a brand new Stream object every time it's
-  // called. Passing a fresh one to StreamBuilder's `stream:` argument on
-  // every rebuild (which happens on every keystroke, via setState below)
-  // made StreamBuilder treat it as a different stream each time — tearing
-  // down and rebuilding the subscription, which briefly dropped back to
-  // ConnectionState.waiting and replaced this whole screen's body
-  // (including the TextField) with a loading spinner mid-keystroke. That
-  // destroyed the TextField's focus/keyboard connection every single
-  // time, which is why only one letter could ever be typed before the
-  // keyboard closed. Keeping one stable Stream instance here fixes it.
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _machinesStream =
-      FirebaseFirestore.instance.collection('machines').snapshots();
-
   @override
   void initState() {
     super.initState();
@@ -64,7 +50,7 @@ class _MachinesScreenState extends State<MachinesScreen> {
         label: const Text('Add Machine'),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _machinesStream,
+        stream: FirebaseFirestore.instance.collection('machines').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

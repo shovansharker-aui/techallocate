@@ -4,7 +4,6 @@ import '../widgets_admin_monitoring_panel.dart';
 import 'admin_web_settings_screen.dart';
 import 'water_plant_overview_screen.dart';
 import 'archive_management_screen.dart';
-import 'admin_mobile_shell.dart';
 
 enum _AdminSection { maintenance, waterPlant, archive, settings }
 
@@ -52,25 +51,28 @@ class _AdminWebDashboardScreenState extends State<AdminWebDashboardScreen> {
 
   void _select(_AdminSection section, BuildContext context) {
     setState(() => _section = section);
+    if (MediaQuery.sizeOf(context).width < 950) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 950;
-    // Mobile browser / PWA width: use the exact same pill-bottom-nav
-    // shell as native Android, instead of the sidebar/drawer below —
-    // desktop-width web is the only surface that still gets that.
-    if (compact) {
-      return AdminMobileShell(user: widget.user, onLogout: widget.onLogout);
-    }
     return Scaffold(
       body: Row(children: [
-        SizedBox(width: 250, child: _sidebar(context)),
+        if (!compact) SizedBox(width: 250, child: _sidebar(context)),
         Expanded(child: Column(children: [
-          _topBar(context),
+          _topBar(context, compact),
           Expanded(child: _content),
         ])),
       ]),
+      drawer: compact ? Drawer(child: _sidebar(context)) : null,
+      // Flutter's default edge-swipe zone for opening a drawer is a thin
+      // sliver right at the screen edge — barely triggerable on a touch
+      // screen, and easy to lose to a browser's own edge-swipe gestures
+      // on web/PWA. Widening it makes the swipe-to-open gesture reliable
+      // on the web build the same way it already is on native Android.
+      drawerEdgeDragWidth: compact ? MediaQuery.sizeOf(context).width * 0.5 : null,
+      drawerEnableOpenDragGesture: compact,
     );
   }
 
@@ -85,7 +87,7 @@ class _AdminWebDashboardScreenState extends State<AdminWebDashboardScreen> {
     ListTile(leading: const Icon(Icons.logout), title: const Text('Log out'), onTap: widget.onLogout),
   ])));
 
-  Widget _topBar(BuildContext context) {
+  Widget _topBar(BuildContext context, bool compact) {
     return Material(
       elevation: 1,
       child: SizedBox(
@@ -94,6 +96,13 @@ class _AdminWebDashboardScreenState extends State<AdminWebDashboardScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Row(
             children: [
+              if (compact)
+                Builder(
+                  builder: (context) => IconButton(
+                    icon: const Icon(Icons.menu),
+                    onPressed: () => Scaffold.of(context).openDrawer(),
+                  ),
+                ),
               Text(
                 _title,
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),

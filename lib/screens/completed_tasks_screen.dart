@@ -8,31 +8,14 @@ import '../utils/date_format.dart';
 import '../utils/task_type.dart';
 import '../utils/app_colors.dart';
 
-/// Thin Scaffold wrapper around CompletedTasksBody, so it can be pushed
-/// as its own screen (desktop web's "View History" button) while the
-/// mobile bottom-nav shell (native Android / compact web) embeds
-/// CompletedTasksBody directly as its "History" tab without stacking
-/// two AppBars.
-class CompletedTasksScreen extends StatelessWidget {
+class CompletedTasksScreen extends StatefulWidget {
   const CompletedTasksScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Completed Tasks')),
-      body: const CompletedTasksBody(),
-    );
-  }
+  State<CompletedTasksScreen> createState() => _CompletedTasksScreenState();
 }
 
-class CompletedTasksBody extends StatefulWidget {
-  const CompletedTasksBody({super.key});
-
-  @override
-  State<CompletedTasksBody> createState() => _CompletedTasksBodyState();
-}
-
-class _CompletedTasksBodyState extends State<CompletedTasksBody> {
+class _CompletedTasksScreenState extends State<CompletedTasksScreen> {
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
 
   String _typeDetail(WorkOrder order) {
@@ -113,7 +96,9 @@ class _CompletedTasksBodyState extends State<CompletedTasksBody> {
     final monthEnd = DateTime(_month.year, _month.month + 1);
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
-    return ListView(
+    return Scaffold(
+      appBar: AppBar(title: const Text('Completed Tasks')),
+      body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           const Text('Today', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
@@ -131,6 +116,7 @@ class _CompletedTasksBodyState extends State<CompletedTasksBody> {
           const SizedBox(height: 8),
           _monthlyTaskList(start: monthStart, end: monthEnd),
         ],
+      ),
     );
   }
 }

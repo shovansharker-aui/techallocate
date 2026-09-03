@@ -1,11 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'widgets_live_activity_grid.dart';
 import 'widgets_completed_tasks_section.dart';
 import 'widgets_daily_summary.dart';
 import 'widgets_task_type_chart.dart';
-import 'widgets_work_density_chart.dart';
 import 'services/android_widget_service.dart';
 import 'models/app_user.dart';
 import 'models/helper.dart';
@@ -79,16 +77,9 @@ class AdminMonitoringPanel extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  const WorkDensityCard(),
-                  const SizedBox(height: 18),
                   const LiveActivityGrid(),
                   const SizedBox(height: 18),
-                  // Completed-task browsing now lives in its own
-                  // dedicated "History" destination on native Android,
-                  // Android browser, and PWA (see the bottom nav) —
-                  // kept embedded here only for desktop-width web, which
-                  // still uses the original sidebar layout unchanged.
-                  if (kIsWeb && MediaQuery.sizeOf(context).width >= 950) const CompletedTasksSection(),
+                  const CompletedTasksSection(),
                 ]);
               },
             );
