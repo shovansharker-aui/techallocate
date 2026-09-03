@@ -7,13 +7,29 @@ import '../utils/app_colors.dart';
 import '../services/theme_service.dart';
 import '../widgets_task_type_chart.dart';
 
-class SettingsScreen extends StatefulWidget {
+/// Thin Scaffold wrapper around SettingsBody, so it can still be pushed
+/// as its own screen anywhere that needs it, while the mobile bottom-nav
+/// shell (native Android / compact web) embeds SettingsBody directly as
+/// its "Settings" tab without stacking two AppBars.
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
+
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: const SettingsBody(),
+    );
+  }
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class SettingsBody extends StatefulWidget {
+  const SettingsBody({super.key});
+  @override
+  State<SettingsBody> createState() => _SettingsBodyState();
+}
+
+class _SettingsBodyState extends State<SettingsBody> {
   String _whatsapp = 'regular';
 
   @override
@@ -34,9 +50,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
+    return ListView(
         padding: const EdgeInsets.all(16),
         children: [
           const Text('Administration', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
@@ -101,7 +115,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           )),
           if (kIsWeb) const Padding(padding: EdgeInsets.only(top: 8), child: Text('This preference is primarily used by the Android app.', style: TextStyle(color: AppColors.muted))),
         ],
-      ),
     );
   }
 }
