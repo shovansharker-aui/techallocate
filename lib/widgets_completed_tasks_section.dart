@@ -65,6 +65,7 @@ class CompletedTasksSection extends StatelessWidget {
                         context,
                         order: o,
                         machine: machine,
+                        otherUnitLabels: o.groupMachineIds.map((id) => machines[id]?.equipmentId ?? id).toList(),
                         technicianNames: names,
                         helperNames: helperNames,
                       ),

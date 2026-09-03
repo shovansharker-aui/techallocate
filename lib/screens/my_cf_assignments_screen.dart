@@ -133,7 +133,14 @@ class _AssignmentCard extends StatelessWidget {
             if (order.groupMachineIds.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text('Other units: ${order.groupMachineIds.join(', ')}', style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                child: FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  future: FirebaseFirestore.instance.collection('machines').where(FieldPath.documentId, whereIn: order.groupMachineIds).get(),
+                  builder: (context, snap) {
+                    final byId = {for (final d in (snap.data?.docs ?? [])) d.id: Machine.fromMap(d.id, d.data())};
+                    final labels = order.groupMachineIds.map((id) => byId[id]?.equipmentId ?? id).join(', ');
+                    return Text('Other units: $labels', style: const TextStyle(color: AppColors.muted, fontSize: 12));
+                  },
+                ),
               ),
             const SizedBox(height: 4),
             if (order.startedAt != null)

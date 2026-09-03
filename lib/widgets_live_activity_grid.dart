@@ -102,7 +102,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                               margin: EdgeInsets.zero,
                               clipBehavior: Clip.antiAlias,
                               child: InkWell(
-                                onTap: () => _showTaskDetail(context, order, machine, technicianNames, helperNames),
+                                onTap: () => _showTaskDetail(context, order, machine, machines, technicianNames, helperNames),
                                 child: Padding(
                                 padding: const EdgeInsets.all(10),
                                 child: Column(
@@ -130,7 +130,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                     _peopleRow(context, Icons.engineering_outlined, technicianNames, 'No JO'),
                                     if (order.groupMachineIds.isNotEmpty) ...[
                                       const SizedBox(height: 4),
-                                      Text('Other units: ${order.groupMachineIds.join(', ')}', style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+                                      Text('Other units: ${order.groupMachineIds.map((id) => machines[id]?.equipmentId ?? id).join(', ')}', style: const TextStyle(fontSize: 11, color: AppColors.muted)),
                                     ],
                                     if (helperNames.isNotEmpty) ...[
                                       const SizedBox(height: 4),
@@ -189,7 +189,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
     );
   }
 
-  void _showTaskDetail(BuildContext context, WorkOrder order, Machine? machine, List<String> technicianNames, List<String> helperNames) {
+  void _showTaskDetail(BuildContext context, WorkOrder order, Machine? machine, Map<String, Machine> machines, List<String> technicianNames, List<String> helperNames) {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -200,7 +200,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (order.groupMachineIds.isNotEmpty)
-                _detailRow('Other units', order.groupMachineIds.join(', ')),
+                _detailRow('Other units', order.groupMachineIds.map((id) => machines[id]?.equipmentId ?? id).join(', ')),
               if (machine != null && machine.equipmentId.isNotEmpty)
                 _detailRow('Equipment ID', machine.equipmentId),
               _detailRow('Type', '${_typeCode(order)} · ${taskTypeName(order.type)}'),

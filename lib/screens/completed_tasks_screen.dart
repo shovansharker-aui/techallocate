@@ -329,6 +329,7 @@ class _CompletedTaskRow extends StatelessWidget {
           context,
           order: order,
           machine: machine,
+          otherUnitLabels: order.groupMachineIds.map((id) => machines[id]?.equipmentId ?? id).toList(),
           technicianNames: techNames,
           helperNames: helperNames,
           onDeleted: onDeleted,
@@ -346,6 +347,7 @@ Future<void> showCompletedTaskDetail(
   BuildContext context, {
   required WorkOrder order,
   required Machine? machine,
+  List<String> otherUnitLabels = const [],
   required List<String> technicianNames,
   required List<String> helperNames,
   VoidCallback? onDeleted,
@@ -356,6 +358,7 @@ Future<void> showCompletedTaskDetail(
     builder: (sheetContext) => _CompletedTaskDetailSheet(
       order: order,
       machine: machine,
+      otherUnitLabels: otherUnitLabels,
       technicianNames: technicianNames,
       helperNames: helperNames,
       onDeleted: onDeleted,
@@ -366,6 +369,7 @@ Future<void> showCompletedTaskDetail(
 class _CompletedTaskDetailSheet extends StatefulWidget {
   final WorkOrder order;
   final Machine? machine;
+  final List<String> otherUnitLabels;
   final List<String> technicianNames;
   final List<String> helperNames;
   final VoidCallback? onDeleted;
@@ -373,6 +377,7 @@ class _CompletedTaskDetailSheet extends StatefulWidget {
   const _CompletedTaskDetailSheet({
     required this.order,
     required this.machine,
+    this.otherUnitLabels = const [],
     required this.technicianNames,
     required this.helperNames,
     this.onDeleted,
@@ -475,7 +480,7 @@ class _CompletedTaskDetailSheetState extends State<_CompletedTaskDetailSheet> {
                 if (order.lateEntry) ...[const SizedBox(width: 6), lateEntryBadge()],
               ]),
               const SizedBox(height: 14),
-              if (order.groupMachineIds.isNotEmpty) _detailRow('Other units', order.groupMachineIds.join(', ')),
+              if (widget.otherUnitLabels.isNotEmpty) _detailRow('Other units', widget.otherUnitLabels.join(', ')),
               if (machine != null && machine.equipmentId.isNotEmpty) _detailRow('Equipment ID', machine.equipmentId),
               _detailRow('Type', taskTypeName(order.type)),
               if (order.preventiveTypes.isNotEmpty) _detailRow('Preventive type', order.preventiveTypes.join(', ')),
