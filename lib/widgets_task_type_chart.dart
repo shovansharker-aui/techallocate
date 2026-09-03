@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -53,9 +54,27 @@ class TaskTypeBreakdownCard extends StatefulWidget {
 class _TaskTypeBreakdownCardState extends State<TaskTypeBreakdownCard> {
   final _pageController = PageController();
   int _page = 0;
+  int _pageCount = 2; // updated each build; used by the auto-rotate timer
+  Timer? _autoRotateTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startAutoRotate();
+  }
+
+  void _startAutoRotate() {
+    _autoRotateTimer?.cancel();
+    _autoRotateTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted || !_pageController.hasClients || _pageCount <= 1) return;
+      final next = (_page + 1) % _pageCount;
+      _pageController.animateToPage(next, duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
+    });
+  }
 
   @override
   void dispose() {
+    _autoRotateTimer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
@@ -155,6 +174,7 @@ class _TaskTypeBreakdownCardState extends State<TaskTypeBreakdownCard> {
                         ),
                       ),
                     ];
+                    _pageCount = pages.length;
 
                     // Swipe-to-change-page relies on touch drag, which
                     // doesn't really exist with a mouse — desktop web
@@ -181,7 +201,16 @@ class _TaskTypeBreakdownCardState extends State<TaskTypeBreakdownCard> {
                                 children: [
                                   PageView(
                                     controller: _pageController,
-                                    onPageChanged: (i) => setState(() => _page = i),
+                                    onPageChanged: (i) {
+                                      setState(() => _page = i);
+                                      // Whether this change was a manual
+                                      // swipe/arrow tap or the auto-rotate
+                                      // timer itself, restart the 3-second
+                                      // countdown from now — otherwise a
+                                      // manual flip could get immediately
+                                      // undone a moment later.
+                                      _startAutoRotate();
+                                    },
                                     children: pages,
                                   ),
                                   if (showArrows)

@@ -5,6 +5,7 @@ import 'widgets_live_activity_grid.dart';
 import 'widgets_completed_tasks_section.dart';
 import 'widgets_daily_summary.dart';
 import 'widgets_task_type_chart.dart';
+import 'widgets_work_density_chart.dart';
 import 'services/android_widget_service.dart';
 import 'models/app_user.dart';
 import 'models/helper.dart';
@@ -77,6 +78,8 @@ class AdminMonitoringPanel extends StatelessWidget {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 18),
+                  const WorkDensityCard(),
                   const SizedBox(height: 18),
                   const LiveActivityGrid(),
                   const SizedBox(height: 18),

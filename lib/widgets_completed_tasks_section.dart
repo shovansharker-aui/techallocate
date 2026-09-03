@@ -44,10 +44,10 @@ class CompletedTasksSection extends StatelessWidget {
               final Map<String, AppUser> techs = {for (final d in peopleSnapshot.data![0].docs) d.id: AppUser.fromMap(d.id, d.data())};
               final Map<String, Machine> machines = {for (final d in peopleSnapshot.data![1].docs) d.id: Machine.fromMap(d.id, d.data())};
               final Map<String, Helper> helpers = {for (final d in peopleSnapshot.data![2].docs) d.id: Helper.fromMap(d.id, d.data())};
-              // Shows about 5 rows before scrolling, rather than
+              // Shows about 3 rows before scrolling, rather than
               // truncating the rest of today's completed tasks away.
               return ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 340),
+                constraints: const BoxConstraints(maxHeight: 204),
                 child: ListView(
                   shrinkWrap: true,
                   children: orders.map((o) {
