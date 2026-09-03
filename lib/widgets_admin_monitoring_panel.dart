@@ -8,6 +8,7 @@ import 'services/android_widget_service.dart';
 import 'models/app_user.dart';
 import 'models/helper.dart';
 import 'utils/app_colors.dart';
+import 'utils/duty_status.dart';
 
 class AdminMonitoringPanel extends StatelessWidget {
   const AdminMonitoringPanel({super.key});
@@ -28,7 +29,7 @@ class AdminMonitoringPanel extends StatelessWidget {
                 final orders = orderSnapshot.data?.docs ?? [];
                 final availableTechList = techs
                     .map((d) => AppUser.fromMap(d.id, d.data()))
-                    .where((t) => t.status != 'assigned' && t.dutyStatus != 'on_leave')
+                    .where(isEffectivelyAvailable)
                     .toList();
                 final availableHelperList = helpers
                     .map((d) => Helper.fromMap(d.id, d.data()))

@@ -8,17 +8,14 @@ import '../models/machine.dart';
 import '../models/work_order.dart';
 import '../widgets_root_back_scope.dart';
 import '../utils/date_format.dart';
+import '../utils/duty_status.dart';
 import '../utils/machine_group.dart';
 import '../utils/task_type.dart';
+import '../services/status_reminder_notification.dart';
 import '../utils/offline_commit.dart';
 import 'my_cf_assignments_screen.dart';
 import 'late_entry_screen.dart';
 import '../utils/app_colors.dart';
-
-String _todayKey([DateTime? now]) {
-  final n = now ?? DateTime.now();
-  return '${n.year}-${n.month.toString().padLeft(2, '0')}-${n.day.toString().padLeft(2, '0')}';
-}
 
 class TechnicianScreen extends StatefulWidget {
   final AppUser user;
@@ -41,10 +38,16 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
     // this never re-fires just because dutyStatus changed) — matching
     // "first login of the day" rather than "every time anything reloads".
     final now = DateTime.now();
-    final needsPrompt = now.hour >= 8 && widget.user.dutyStatusDate != _todayKey(now);
+    final needsPrompt = now.hour >= 8 && widget.user.dutyStatusDate != todayKey(now);
     _checkedMandatoryStatus = true;
     if (needsPrompt) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _showMandatoryStatusDialog());
+      // Also fires a real OS-level notification on web/PWA (browser
+      // Notification API) as a second, more attention-grabbing nudge —
+      // a no-op on the native Android app for now, since a true
+      // system notification there needs a plugin plus native manifest
+      // changes that aren't wired up yet.
+      showStatusReminderNotification();
     }
   }
 
@@ -80,7 +83,7 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
     await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).update({
       'dutyStatus': choice,
       'status': choice == 'on_leave' ? 'on_leave' : (assigned ? 'assigned' : 'available'),
-      'dutyStatusDate': _todayKey(),
+      'dutyStatusDate': todayKey(),
     });
   }
 
@@ -97,7 +100,7 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
         ),
       );
       if (choice != null) {
-        await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).update({'dutyStatus': choice, 'dutyStatusDate': _todayKey()});
+        await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).update({'dutyStatus': choice, 'dutyStatusDate': todayKey()});
       }
       return;
     }
@@ -117,7 +120,7 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
     await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).update({
       'dutyStatus': choice,
       'status': choice == 'on_leave' ? 'on_leave' : 'available',
-      'dutyStatusDate': _todayKey(),
+      'dutyStatusDate': todayKey(),
     });
   }
 
@@ -221,14 +224,23 @@ class _TodayStatsCard extends StatelessWidget {
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      // Deliberately NOT filtering completedAt in the query itself:
+      // array-contains + equality + a range filter on a third field is
+      // exactly the combination that needs a manual Firestore composite
+      // index, and none exists for this one — which silently failed and
+      // is why this card showed nothing anywhere. array-contains +
+      // equality alone doesn't need one, so today's cutoff is applied
+      // client-side instead below.
       stream: FirebaseFirestore.instance
           .collection('work_orders')
           .where('assignedTechnicianIds', arrayContains: uid)
           .where('status', isEqualTo: 'completed')
-          .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
           .snapshots(),
       builder: (context, snapshot) {
-        final orders = (snapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data())).toList();
+        final orders = (snapshot.data?.docs ?? [])
+            .map((d) => WorkOrder.fromMap(d.id, d.data()))
+            .where((o) => o.completedAt != null && !o.completedAt!.isBefore(todayStart))
+            .toList();
         final count = orders.length;
         final totalSeconds = orders.fold<int>(0, (sum, o) => sum + (o.durationSeconds ?? 0));
         final hours = totalSeconds ~/ 3600;

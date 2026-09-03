@@ -47,49 +47,62 @@ class TaskTypeBreakdownCard extends StatelessWidget {
               .where('status', isEqualTo: 'completed')
               .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
               .snapshots(),
-          builder: (context, snapshot) {
-            final orders = (snapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data()));
-            final counts = <String, int>{};
-            for (final o in orders) {
-              counts[o.type] = (counts[o.type] ?? 0) + 1;
-            }
-            final data = taskTypeChartOrder
-                .map((key) => TaskTypeDatum(
-                      code: taskTypeCode(key),
-                      name: taskTypeName(key),
-                      value: counts[key] ?? 0,
-                      color: taskTypeChartColors[key]!,
-                    ))
-                .toList();
-            final total = data.fold<int>(0, (s, d) => s + d.value);
+          builder: (context, completedSnapshot) {
+            // A task still running counts toward today's tally too — it's
+            // already part of today's work even though it isn't finished
+            // yet. Kept as a second, separate query (plain equality, no
+            // date range) rather than folded into the query above, since
+            // 'in_progress' tasks have no completedAt to filter by at all.
+            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance.collection('work_orders').where('status', isEqualTo: 'in_progress').snapshots(),
+              builder: (context, runningSnapshot) {
+                final orders = [
+                  ...(completedSnapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data())),
+                  ...(runningSnapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data())),
+                ];
+                final counts = <String, int>{};
+                for (final o in orders) {
+                  counts[o.type] = (counts[o.type] ?? 0) + 1;
+                }
+                final data = taskTypeChartOrder
+                    .map((key) => TaskTypeDatum(
+                          code: taskTypeCode(key),
+                          name: taskTypeName(key),
+                          value: counts[key] ?? 0,
+                          color: taskTypeChartColors[key]!,
+                        ))
+                    .toList();
+                final total = data.fold<int>(0, (s, d) => s + d.value);
 
-            return Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      const Icon(Icons.donut_large_outlined, size: 20),
-                      const SizedBox(width: 8),
-                      const Expanded(child: Text("Today's Summary", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
-                    ]),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: total == 0
-                          ? const Center(child: Text('No tasks completed yet today.', style: TextStyle(color: AppColors.muted, fontSize: 12)))
-                          : mode == ChartMode.sunburst
-                              ? _Sunburst(data: data, total: total)
-                              : _Treemap(data: data),
+                return Card(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          const Icon(Icons.donut_large_outlined, size: 20),
+                          const SizedBox(width: 8),
+                          const Expanded(child: Text("Today's Summary", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+                        ]),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: total == 0
+                              ? const Center(child: Text('No tasks today yet.', style: TextStyle(color: AppColors.muted, fontSize: 12)))
+                              : mode == ChartMode.sunburst
+                                  ? _Sunburst(data: data, total: total)
+                                  : _Treemap(data: data),
+                        ),
+                        if (total > 0) ...[
+                          const SizedBox(height: 10),
+                          _Legend(data: data),
+                        ],
+                      ],
                     ),
-                    if (total > 0) ...[
-                      const SizedBox(height: 10),
-                      _Legend(data: data),
-                    ],
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             );
           },
         );
@@ -250,7 +263,7 @@ class _Legend extends StatelessWidget {
         return Row(mainAxisSize: MainAxisSize.min, children: [
           Container(width: 9, height: 9, decoration: BoxDecoration(color: d.color, shape: BoxShape.circle)),
           const SizedBox(width: 4),
-          Text('${d.code} ${d.value}', style: const TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w600)),
+          Text('${d.code}-${d.value}', style: const TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w600)),
         ]);
       }).toList(),
     );
