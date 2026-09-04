@@ -257,18 +257,32 @@ class _PaginatedMonthlyTasksState extends State<_PaginatedMonthlyTasks> {
       );
     }
 
+    // Grouped by date rather than one flat list — _orders is already
+    // sorted newest-first (the query orders by completedAt descending),
+    // so a date header just needs to appear whenever the date changes
+    // between one row and the next.
+    final children = <Widget>[];
+    DateTime? lastDate;
+    for (final order in _orders) {
+      final completedAt = order.completedAt;
+      final orderDate = completedAt == null ? null : DateTime(completedAt.year, completedAt.month, completedAt.day);
+      if (orderDate != null && orderDate != lastDate) {
+        children.add(_DateHeader(date: orderDate));
+        lastDate = orderDate;
+      }
+      children.add(_CompletedTaskRow(
+        order: order,
+        machines: _machines,
+        users: _users,
+        helpers: _helpers,
+        typeDetail: widget.typeDetail(order),
+        onDeleted: () => _removeLocally(order.id),
+      ));
+    }
+
     return Column(
       children: [
-        ..._orders.map((order) {
-          return _CompletedTaskRow(
-            order: order,
-            machines: _machines,
-            users: _users,
-            helpers: _helpers,
-            typeDetail: widget.typeDetail(order),
-            onDeleted: () => _removeLocally(order.id),
-          );
-        }),
+        ...children,
         if (_hasMore)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -290,6 +304,29 @@ class _PaginatedMonthlyTasksState extends State<_PaginatedMonthlyTasks> {
 /// A tappable row for one completed task — tapping opens the full detail
 /// sheet (see showCompletedTaskDetail below), which is also where
 /// deleting it lives.
+/// A date separator between groups of completed tasks in the monthly
+/// history list, so it's unmistakable when one day's tasks end and the
+/// next day's begin.
+class _DateHeader extends StatelessWidget {
+  final DateTime date;
+  const _DateHeader({required this.date});
+
+  @override
+  Widget build(BuildContext context) {
+    const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    final label = '${weekdays[date.weekday - 1]}, ${date.day} ${months[date.month - 1]} ${date.year}';
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 6),
+      child: Row(children: [
+        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.muted)),
+        const SizedBox(width: 10),
+        Expanded(child: Divider(color: AppColors.muted.withValues(alpha: 0.25))),
+      ]),
+    );
+  }
+}
+
 class _CompletedTaskRow extends StatelessWidget {
   final WorkOrder order;
   final Map<String, Machine> machines;

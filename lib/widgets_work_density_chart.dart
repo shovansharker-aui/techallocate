@@ -7,42 +7,50 @@ import 'utils/date_format.dart';
 const _taskLineColor = Color(0xFF5B9BD5);
 const _personLineColor = Color(0xFFED7D31);
 
-/// Compact "work density, last 5 hours" card — two overlaid lines
-/// showing (1) how many tasks were concurrently running and (2) how
-/// many unique people (JO + CF combined) were concurrently engaged, at
-/// each sampled moment. Tapping it opens the same chart full-width,
-/// covering midnight to now instead of just the last 5 hours.
+/// Work density since the start of the working day (8:00 AM) up to now —
+/// two overlaid lines showing (1) how many tasks were concurrently
+/// running and (2) how many unique people (JO + CF combined) were
+/// concurrently engaged, at each sampled moment. The window keeps
+/// growing through the day: checked at noon it's 8 AM-12 PM, checked at
+/// 11 PM it's 8 AM-11 PM.
+///
+/// This card is meant to be placed in a page with real room to show it
+/// (the desktop Graphs section, or the mobile "Today's Summary" detail
+/// page) rather than a small dashboard tile, so it always renders at
+/// full size with axis labels — no separate tap-to-expand view needed
+/// anymore.
 class WorkDensityCard extends StatelessWidget {
   const WorkDensityCard({super.key});
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final windowStart = now.subtract(const Duration(hours: 5));
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const _ExpandedWorkDensityScreen())),
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                const Icon(Icons.show_chart, size: 20),
-                const SizedBox(width: 8),
-                const Expanded(child: Text('Work Density · Last 5 hours', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
-                const Icon(Icons.open_in_full, size: 16, color: AppColors.muted),
-              ]),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 180,
-                child: _WorkDensityChart(windowStart: windowStart, windowEnd: now, stepMinutes: 5),
-              ),
-              const SizedBox(height: 10),
-              _legend(),
-            ],
-          ),
+    final eightAm = DateTime(now.year, now.month, now.day, 8);
+    final windowStart = eightAm;
+    final hasStarted = !now.isBefore(eightAm);
+
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.show_chart, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Work Density · Since 8:00 AM', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+            ]),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 220,
+              child: hasStarted
+                  ? _WorkDensityChart(windowStart: windowStart, windowEnd: now)
+                  : const Center(child: Text("The work day hasn't started yet — check back after 8:00 AM.", style: TextStyle(color: AppColors.muted, fontSize: 12))),
+            ),
+            const SizedBox(height: 10),
+            _legend(),
+          ],
         ),
       ),
     );
@@ -64,32 +72,6 @@ Widget _legendItem(String label, Color color) {
   ]);
 }
 
-class _ExpandedWorkDensityScreen extends StatelessWidget {
-  const _ExpandedWorkDensityScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final windowStart = DateTime(now.year, now.month, now.day); // 00:00 today
-    return Scaffold(
-      appBar: AppBar(title: const Text('Work Density · Today')),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _legend(),
-            const SizedBox(height: 20),
-            Expanded(
-              child: _WorkDensityChart(windowStart: windowStart, windowEnd: now, stepMinutes: 10, showAxisLabels: true),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// Fetches every work order whose active interval overlaps
 /// [windowStart, windowEnd], samples the window at regular intervals,
 /// and renders two overlaid lines: concurrent task count and unique
@@ -97,18 +79,18 @@ class _ExpandedWorkDensityScreen extends StatelessWidget {
 class _WorkDensityChart extends StatelessWidget {
   final DateTime windowStart;
   final DateTime windowEnd;
-  final int stepMinutes;
-  final bool showAxisLabels;
 
-  const _WorkDensityChart({
-    required this.windowStart,
-    required this.windowEnd,
-    required this.stepMinutes,
-    this.showAxisLabels = false,
-  });
+  const _WorkDensityChart({required this.windowStart, required this.windowEnd});
 
   @override
   Widget build(BuildContext context) {
+    // A wider window (later in the day) is sampled more coarsely so the
+    // point count — and therefore the drawing work — stays reasonable;
+    // an early-morning check gets fine-grained 5-minute samples, a
+    // late-evening check steps up to 15.
+    final windowMinutes = windowEnd.difference(windowStart).inMinutes;
+    final stepMinutes = windowMinutes <= 240 ? 5 : (windowMinutes <= 480 ? 10 : 15);
+
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance.collection('work_orders').where('status', isEqualTo: 'in_progress').snapshots(),
       builder: (context, runningSnapshot) {
@@ -124,7 +106,7 @@ class _WorkDensityChart extends StatelessWidget {
               ...(completedSnapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data())),
             ];
 
-            final sampleCount = (windowEnd.difference(windowStart).inMinutes / stepMinutes).ceil().clamp(2, 300);
+            final sampleCount = (windowMinutes / stepMinutes).ceil().clamp(2, 300);
             final taskSeries = <double>[];
             final personSeries = <double>[];
             final times = <DateTime>[];
@@ -153,12 +135,7 @@ class _WorkDensityChart extends StatelessWidget {
             }
 
             return CustomPaint(
-              painter: _LineChartPainter(
-                taskSeries: taskSeries,
-                personSeries: personSeries,
-                times: times,
-                showAxisLabels: showAxisLabels,
-              ),
+              painter: _LineChartPainter(taskSeries: taskSeries, personSeries: personSeries, times: times),
               child: Container(),
             );
           },
@@ -172,30 +149,27 @@ class _LineChartPainter extends CustomPainter {
   final List<double> taskSeries;
   final List<double> personSeries;
   final List<DateTime> times;
-  final bool showAxisLabels;
 
-  _LineChartPainter({required this.taskSeries, required this.personSeries, required this.times, required this.showAxisLabels});
+  _LineChartPainter({required this.taskSeries, required this.personSeries, required this.times});
 
   @override
   void paint(Canvas canvas, Size size) {
     if (taskSeries.isEmpty) return;
-    final leftPad = showAxisLabels ? 28.0 : 4.0;
-    final bottomPad = showAxisLabels ? 22.0 : 4.0;
+    const leftPad = 28.0;
+    const bottomPad = 22.0;
     final chartRect = Rect.fromLTWH(leftPad, 4, size.width - leftPad - 4, size.height - bottomPad - 4);
 
     final maxVal = [...taskSeries, ...personSeries].fold<double>(1, (m, v) => v > m ? v : m);
     final gridPaint = Paint()..color = AppColors.muted.withValues(alpha: 0.15)..strokeWidth = 1;
-    final textStyle = const TextStyle(fontSize: 9, color: AppColors.muted);
+    const textStyle = TextStyle(fontSize: 9, color: AppColors.muted);
 
     // Horizontal grid lines at 0, half, and max.
     for (final fraction in [0.0, 0.5, 1.0]) {
       final y = chartRect.bottom - fraction * chartRect.height;
       canvas.drawLine(Offset(chartRect.left, y), Offset(chartRect.right, y), gridPaint);
-      if (showAxisLabels) {
-        final label = (maxVal * fraction).round().toString();
-        final painter = TextPainter(text: TextSpan(text: label, style: textStyle), textDirection: TextDirection.ltr)..layout();
-        painter.paint(canvas, Offset(0, y - painter.height / 2));
-      }
+      final label = (maxVal * fraction).round().toString();
+      final painter = TextPainter(text: TextSpan(text: label, style: textStyle), textDirection: TextDirection.ltr)..layout();
+      painter.paint(canvas, Offset(0, y - painter.height / 2));
     }
 
     void drawSeries(List<double> series, Color color) {
@@ -215,7 +189,7 @@ class _LineChartPainter extends CustomPainter {
     drawSeries(taskSeries, _taskLineColor);
     drawSeries(personSeries, _personLineColor);
 
-    if (showAxisLabels && times.isNotEmpty) {
+    if (times.isNotEmpty) {
       for (final fraction in [0.0, 0.5, 1.0]) {
         final index = ((times.length - 1) * fraction).round();
         final label = formatTime12h(times[index]);

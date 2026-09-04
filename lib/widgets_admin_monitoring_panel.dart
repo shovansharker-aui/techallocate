@@ -5,8 +5,8 @@ import 'widgets_live_activity_grid.dart';
 import 'widgets_completed_tasks_section.dart';
 import 'widgets_daily_summary.dart';
 import 'widgets_task_type_chart.dart';
-import 'widgets_work_density_chart.dart';
 import 'services/android_widget_service.dart';
+import 'screens/task_charts_detail_screen.dart';
 import 'models/app_user.dart';
 import 'models/helper.dart';
 import 'utils/app_colors.dart';
@@ -74,12 +74,24 @@ class AdminMonitoringPanel extends StatelessWidget {
                           ]),
                         ),
                         const SizedBox(width: 12),
-                        const Expanded(child: TaskTypeBreakdownCard()),
+                        Expanded(
+                          // Desktop keeps its own dedicated "Graphs"
+                          // sidebar section for anything beyond this
+                          // chart, so tapping here does nothing extra on
+                          // desktop. Native Android and mobile/PWA web
+                          // have no spare bottom-nav slot for that, so
+                          // tapping this chart is how they reach the
+                          // rest of the graphs instead.
+                          child: (!kIsWeb || MediaQuery.sizeOf(context).width < 950)
+                              ? GestureDetector(
+                                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TaskChartsDetailScreen())),
+                                  child: const TaskTypeBreakdownCard(),
+                                )
+                              : const TaskTypeBreakdownCard(),
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  const WorkDensityCard(),
                   const SizedBox(height: 18),
                   const LiveActivityGrid(),
                   const SizedBox(height: 18),
