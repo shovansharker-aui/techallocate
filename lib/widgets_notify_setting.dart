@@ -18,6 +18,8 @@ class NotifySetting extends StatefulWidget {
 class _NotifySettingState extends State<NotifySetting> {
   final _controller = TextEditingController();
   bool _isSending = false;
+  bool _toMaintenance = true;
+  bool _toWaterPlant = true;
 
   @override
   void dispose() {
@@ -28,6 +30,10 @@ class _NotifySettingState extends State<NotifySetting> {
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
+    if (!_toMaintenance && !_toWaterPlant) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select at least one audience.')));
+      return;
+    }
     setState(() => _isSending = true);
     try {
       await waterPlantSettingsRef.set({
@@ -35,6 +41,10 @@ class _NotifySettingState extends State<NotifySetting> {
         // A fresh id each send is what makes it show again even if the
         // wording happens to repeat — devices compare ids, not text.
         'notifyMessageId': DateTime.now().millisecondsSinceEpoch.toString(),
+        'notifyAudience': [
+          if (_toMaintenance) 'technician',
+          if (_toWaterPlant) 'water_plant_manager',
+        ],
       }, SetOptions(merge: true));
       if (mounted) {
         _controller.clear();
@@ -74,7 +84,25 @@ class _NotifySettingState extends State<NotifySetting> {
                 hintText: 'e.g. "Please reopen the app to get the newest update"',
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
+            const Text('Send to', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.muted)),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              dense: true,
+              title: const Text('Maintenance (Junior Officers)'),
+              value: _toMaintenance,
+              onChanged: (v) => setState(() => _toMaintenance = v ?? false),
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              dense: true,
+              title: const Text('Water Plant'),
+              value: _toWaterPlant,
+              onChanged: (v) => setState(() => _toWaterPlant = v ?? false),
+            ),
+            const SizedBox(height: 6),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -82,7 +110,7 @@ class _NotifySettingState extends State<NotifySetting> {
                 icon: _isSending
                     ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.campaign_outlined),
-                label: const Text('Send to everyone'),
+                label: const Text('Send'),
               ),
             ),
           ],

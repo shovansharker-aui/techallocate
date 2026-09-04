@@ -146,13 +146,14 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                         TextButton.icon(
                                           style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 28), visualDensity: VisualDensity.compact),
                                           onPressed: () async {
-                                            final time = await pickCompletionTime(context, startedAt: order.startedAt);
-                                            if (time == null) return;
+                                            final picked = await pickCompletionTime(context, startedAt: order.startedAt);
+                                            if (picked == null) return;
                                             completeWorkOrder(
                                               orderId: order.id,
                                               technicianIds: order.assignedTechnicianIds,
                                               helperIds: order.helperIds,
-                                              completedAt: time,
+                                              completedAt: picked.time,
+                                              lateEntry: picked.isBacktime,
                                             );
                                           },
                                           icon: const Icon(Icons.check_circle_outline, size: 15),

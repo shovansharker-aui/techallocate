@@ -23,15 +23,13 @@ class UserSessionGate extends StatefulWidget {
 }
 
 class _UserSessionGateState extends State<UserSessionGate> {
-  @override
-  void initState() {
-    super.initState();
-    // Runs exactly once per app session, independent of how many times
-    // the StreamBuilder below rebuilds from ordinary user-doc updates
-    // (status changes, etc.) — covers every role, since this gate is
-    // the one place all of them pass through right after login.
+  bool _notifyChecked = false;
+
+  void _maybeCheckNotify(AppUser user) {
+    if (_notifyChecked) return;
+    _notifyChecked = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) notifyService.checkAndShow(context);
+      if (mounted) notifyService.checkAndShow(context, role: user.role.toLowerCase());
     });
   }
 
@@ -90,6 +88,10 @@ class _UserSessionGateState extends State<UserSessionGate> {
         }
 
         final user = AppUser.fromMap(widget.docId, snapshot.data!.data()!);
+        // Runs exactly once per session (guarded by _notifyChecked)
+        // rather than in initState, specifically because the role isn't
+        // known until this first snapshot arrives.
+        _maybeCheckNotify(user);
 
         switch (user.role.toLowerCase()) {
           case 'admin':

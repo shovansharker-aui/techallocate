@@ -35,7 +35,7 @@ class GraphsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Graphs')),
+      appBar: AppBar(title: const Text('Analysis')),
       body: const GraphsBody(),
     );
   }

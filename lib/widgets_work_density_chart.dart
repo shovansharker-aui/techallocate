@@ -7,12 +7,12 @@ import 'utils/date_format.dart';
 const _taskLineColor = Color(0xFF5B9BD5);
 const _personLineColor = Color(0xFFED7D31);
 
-/// Work density since the start of the working day (8:00 AM) up to now —
+/// Work density since the start of the working day (00:00 AM) up to now —
 /// two overlaid lines showing (1) how many tasks were concurrently
 /// running and (2) how many unique people (JO + CF combined) were
 /// concurrently engaged, at each sampled moment. The window keeps
-/// growing through the day: checked at noon it's 8 AM-12 PM, checked at
-/// 11 PM it's 8 AM-11 PM.
+/// growing through the day: checked at noon it's 00 AM-12 PM, checked at
+/// 11 PM it's 00 AM-11 PM.
 ///
 /// This card is meant to be placed in a page with real room to show it
 /// (the desktop Graphs section, or the mobile "Today's Summary" detail

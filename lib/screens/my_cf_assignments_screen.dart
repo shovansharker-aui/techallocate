@@ -166,13 +166,14 @@ class _AssignmentCard extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () async {
-                      final time = await pickCompletionTime(context, startedAt: order.startedAt);
-                      if (time == null) return;
+                      final picked = await pickCompletionTime(context, startedAt: order.startedAt);
+                      if (picked == null) return;
                       completeWorkOrder(
                         orderId: order.id,
                         technicianIds: order.assignedTechnicianIds,
                         helperIds: order.helperIds,
-                        completedAt: time,
+                        completedAt: picked.time,
+                        lateEntry: picked.isBacktime,
                       );
                     },
                     icon: const Icon(Icons.check_circle_outline),

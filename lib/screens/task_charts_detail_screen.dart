@@ -14,7 +14,7 @@ class TaskChartsDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Graphs')),
+      appBar: AppBar(title: const Text('Analysis')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: const [

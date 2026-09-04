@@ -37,7 +37,7 @@ class _AdminWebDashboardScreenState extends State<AdminWebDashboardScreen> {
       case _AdminSection.maintenance: return 'RPGF Maintenance Tracker';
       case _AdminSection.waterPlant: return 'Water Plant';
       case _AdminSection.archive: return 'Archive';
-      case _AdminSection.graphs: return 'Graphs';
+      case _AdminSection.graphs: return 'Analysis';
       case _AdminSection.settings: return 'Settings';
     }
   }
@@ -93,7 +93,7 @@ class _AdminWebDashboardScreenState extends State<AdminWebDashboardScreen> {
     ),
     ListTile(selected: _section == _AdminSection.waterPlant, leading: const Icon(Icons.water_drop_outlined), title: const Text('Water Plant'), onTap: () => _select(_AdminSection.waterPlant)),
     ListTile(selected: _section == _AdminSection.archive, leading: const Icon(Icons.archive_outlined), title: const Text('Archive'), onTap: () => _select(_AdminSection.archive)),
-    ListTile(selected: _section == _AdminSection.graphs, leading: const Icon(Icons.bar_chart_outlined), title: const Text('Graphs'), onTap: () => _select(_AdminSection.graphs)),
+    ListTile(selected: _section == _AdminSection.graphs, leading: const Icon(Icons.bar_chart_outlined), title: const Text('Analysis'), onTap: () => _select(_AdminSection.graphs)),
     ListTile(selected: _section == _AdminSection.settings, leading: const Icon(Icons.settings_outlined), title: const Text('Settings'), onTap: () => _select(_AdminSection.settings)),
     const Spacer(), const Divider(height: 1),
     ListTile(leading: const CircleAvatar(child: Icon(Icons.person)), title: Text(widget.user.name, maxLines: 1, overflow: TextOverflow.ellipsis)),

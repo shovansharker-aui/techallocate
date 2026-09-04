@@ -731,36 +731,109 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
     }
   }
 
-  Future<void> _editStartingRemarks(WorkOrder order) async {
-    final controller = TextEditingController(text: order.description);
-    final result = await showDialog<String>(
+  Future<void> _addAnotherJo(WorkOrder order) async {
+    final snap = await FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'technician').orderBy('name').get();
+    final all = snap.docs.map((d) => AppUser.fromMap(d.id, d.data())).toList();
+    // Anyone not already on this task — a JO can be on several tasks at
+    // once already, so there's no "must be available" restriction the
+    // way there is for CFs (who can only ever be on one task).
+    final candidates = all.where((u) => u.uid != widget.uid && !order.assignedTechnicianIds.contains(u.uid)).toList();
+
+    if (candidates.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No other Junior Officer to add.')));
+      return;
+    }
+
+    final picked = await showModalBottomSheet<AppUser>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Edit Starting Remarks'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 4,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Save')),
-        ],
+      builder: (sheetContext) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(padding: EdgeInsets.all(16), child: Text('Bring another Junior Officer onto this task', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 420),
+            child: ListView(
+              shrinkWrap: true,
+              children: candidates.map((u) => ListTile(
+                leading: const Icon(Icons.engineering_outlined),
+                title: Text(u.name),
+                onTap: () => Navigator.pop(sheetContext, u),
+              )).toList(),
+            ),
+          ),
+        ]),
       ),
     );
-    controller.dispose();
-    if (result == null || !mounted) return;
-    try {
-      await FirebaseFirestore.instance.collection('work_orders').doc(widget.taskId).update({'description': result});
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+    if (picked == null) return;
+
+    final firestore = FirebaseFirestore.instance;
+    final batch = firestore.batch();
+    batch.update(firestore.collection('work_orders').doc(widget.taskId), {
+      'assignedTechnicianIds': FieldValue.arrayUnion([picked.uid]),
+    });
+    batch.update(firestore.collection('users').doc(picked.uid), {'status': 'assigned'});
+    commitAllowingOffline(batch);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${picked.name} added to this task.')));
     }
   }
 
-  Future<void> _confirmAndComplete(WorkOrder order) async {
-    final required = order.type != 'preventive';
+  Future<void> _confirmCancelTask(WorkOrder order) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel this task?'),
+        content: const Text('This removes the task entirely, as if it was never started. Use this if it was started by mistake. This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Keep Task')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Cancel Task'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
 
+    final firestore = FirebaseFirestore.instance;
+    final batch = firestore.batch();
+    batch.update(firestore.collection('work_orders').doc(widget.taskId), {'status': 'cancelled'});
+    final stillBusy = widget.totalRunningCount > 1;
+    for (final id in order.assignedTechnicianIds) {
+      batch.update(firestore.collection('users').doc(id), {'status': id == widget.uid && !stillBusy ? 'available' : 'assigned'});
+    }
+    for (final id in order.helperIds) {
+      batch.update(firestore.collection('helpers').doc(id), {'status': 'available', 'currentTaskId': null});
+    }
+    commitAllowingOffline(batch);
+  }
+
+  Future<void> _confirmAndComplete(WorkOrder order) async {
+    final otherJOs = order.assignedTechnicianIds.where((id) => id != widget.uid).toList();
+    if (otherJOs.isNotEmpty) {
+      // Multi-JO task: "Complete" for just me means stepping away — the
+      // task keeps running for whoever else is still on it, and only
+      // actually completes once the last JO leaves it.
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Leave this task?'),
+          content: const Text('It will keep running for the other Junior Officer(s) on it — you\'ll just be taken off it.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Stay')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Leave Task')),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+      await _leaveMultiJoTask();
+      return;
+    }
+
+    final picked = await pickCompletionTime(context, startedAt: order.startedAt);
+    if (picked == null || !mounted) return;
+
+    final required = order.type != 'preventive';
     // The TextEditingController is owned by the dialog itself.
     // This is important because Flutter may still dispatch a focus
     // notification for the TextField immediately after the dialog closes.
@@ -776,21 +849,33 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
     );
 
     if (!mounted || remarks == null) return;
-    await _completeTask(order, remarks);
+    await _completeTask(order, remarks, completedAt: picked.time, lateEntry: picked.isBacktime);
   }
 
-  Future<void> _completeTask(WorkOrder order, String remarks) async {
-    setState(() => _isCompleting = true);
+  Future<void> _leaveMultiJoTask() async {
     final firestore = FirebaseFirestore.instance;
-    final now = DateTime.now();
-    final duration = order.startedAt == null ? null : now.difference(order.startedAt!).inSeconds;
     final batch = firestore.batch();
     batch.update(firestore.collection('work_orders').doc(widget.taskId), {
+      'assignedTechnicianIds': FieldValue.arrayRemove([widget.uid]),
+    });
+    final stillBusy = widget.totalRunningCount > 1;
+    batch.update(firestore.collection('users').doc(widget.uid), {'status': stillBusy ? 'assigned' : 'available'});
+    commitAllowingOffline(batch);
+  }
+
+  Future<void> _completeTask(WorkOrder order, String remarks, {required DateTime completedAt, required bool lateEntry}) async {
+    setState(() => _isCompleting = true);
+    final firestore = FirebaseFirestore.instance;
+    final duration = order.startedAt == null ? null : completedAt.difference(order.startedAt!).inSeconds;
+    final batch = firestore.batch();
+    final update = <String, dynamic>{
       'status': 'completed',
-      'completedAt': Timestamp.fromDate(now),
+      'completedAt': Timestamp.fromDate(completedAt),
       'durationSeconds': duration,
       'completionRemarks': remarks,
-    });
+    };
+    if (lateEntry) update['lateEntry'] = true;
+    batch.update(firestore.collection('work_orders').doc(widget.taskId), update);
     // Only drop back to "available" if this was the JO's last running
     // task — otherwise they're still busy with the others.
     final stillBusy = widget.totalRunningCount > 1;
@@ -856,6 +941,30 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
                 if (order.description.isNotEmpty) ...[const SizedBox(height: 8), Text('Starting remarks: ${order.description}')],
                 const SizedBox(height: 18),
                 Row(children: [
+                  const Expanded(child: Text('Junior Officer(s)', style: TextStyle(fontWeight: FontWeight.w600))),
+                  OutlinedButton.icon(onPressed: () => _addAnotherJo(order), icon: const Icon(Icons.person_add_alt_1), label: const Text('Add JO')),
+                ]),
+                const SizedBox(height: 4),
+                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: order.assignedTechnicianIds.isEmpty ? null : FirebaseFirestore.instance.collection('users').where(FieldPath.documentId, whereIn: order.assignedTechnicianIds).snapshots(),
+                  builder: (context, joSnapshot) {
+                    final docs = joSnapshot.data?.docs ?? [];
+                    if (docs.isEmpty) return const Text('—');
+                    return Column(
+                      children: docs.map((d) {
+                        final isMe = d.id == widget.uid;
+                        return ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.engineering_outlined),
+                          title: Text('${(d.data()['name'] ?? '').toString()}${isMe ? ' (You)' : ''}'),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+                const SizedBox(height: 18),
+                Row(children: [
                   const Expanded(child: Text('CFs', style: TextStyle(fontWeight: FontWeight.w600))),
                   if (order.helperIds.isNotEmpty)
                     TextButton.icon(
@@ -898,9 +1007,10 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
               Row(children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => _editStartingRemarks(order),
-                    icon: const Icon(Icons.edit_outlined),
-                    label: const Text('Edit Remarks'),
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger, side: const BorderSide(color: AppColors.danger)),
+                    onPressed: () => _confirmCancelTask(order),
+                    icon: const Icon(Icons.close),
+                    label: const Text('Cancel Task'),
                   ),
                 ),
                 const SizedBox(width: 12),

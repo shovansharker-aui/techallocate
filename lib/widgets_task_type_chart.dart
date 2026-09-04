@@ -65,7 +65,7 @@ class _TaskTypeBreakdownCardState extends State<TaskTypeBreakdownCard> {
 
   void _startAutoRotate() {
     _autoRotateTimer?.cancel();
-    _autoRotateTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+    _autoRotateTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (!mounted || !_pageController.hasClients || _pageCount <= 1) return;
       final next = (_page + 1) % _pageCount;
       _pageController.animateToPage(next, duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
@@ -169,7 +169,10 @@ class _TaskTypeBreakdownCardState extends State<TaskTypeBreakdownCard> {
                           formatValue: (d) {
                             final joId = joIds[joData.indexOf(d)];
                             final count = joTaskCount[joId] ?? 0;
-                            return '${d.name} · $count task${count == 1 ? '' : 's'}';
+                            final h = d.value ~/ 3600;
+                            final m = (d.value % 3600) ~/ 60;
+                            String two(int n) => n.toString().padLeft(2, '0');
+                            return '${d.name} - $count task - ${two(h)}h${two(m)}m';
                           },
                         ),
                       ),
@@ -205,7 +208,7 @@ class _TaskTypeBreakdownCardState extends State<TaskTypeBreakdownCard> {
                                       setState(() => _page = i);
                                       // Whether this change was a manual
                                       // swipe/arrow tap or the auto-rotate
-                                      // timer itself, restart the 6-second
+                                      // timer itself, restart the 3-second
                                       // countdown from now — otherwise a
                                       // manual flip could get immediately
                                       // undone a moment later.
