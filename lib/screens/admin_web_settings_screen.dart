@@ -3,6 +3,7 @@ import 'add_personnel_screen.dart';
 import 'machines_screen.dart';
 import '../services/theme_service.dart';
 import '../widgets_task_type_chart.dart';
+import '../widgets_notify_setting.dart';
 
 /// Thin Scaffold wrapper around AdminSettingsBody, so it can be pushed as
 /// its own screen (Android admin nav) while the web admin shell embeds
@@ -121,6 +122,13 @@ class AdminSettingsBody extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               const ChartModeSetting(),
+              const SizedBox(height: 24),
+              const Text(
+                'Notify',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 10),
+              const NotifySetting(),
             ],
           ),
         ),

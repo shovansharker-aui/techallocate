@@ -56,6 +56,8 @@ class _WaterPlantDutyAllocationScreenState extends State<WaterPlantDutyAllocatio
       stream: waterPlantSettingsRef.snapshots(),
       builder: (context, settingsSnapshot) {
         final switchingEnabled = switchingEnabledFrom(settingsSnapshot.data?.data());
+        final exchangeHour = exchangeHourFrom(settingsSnapshot.data?.data());
+        final exchangeMinute = exchangeMinuteFrom(settingsSnapshot.data?.data());
 
         return Scaffold(
           appBar: AppBar(title: const Text('Duty Allocation')),
@@ -103,6 +105,8 @@ class _WaterPlantDutyAllocationScreenState extends State<WaterPlantDutyAllocatio
                           dutyOverride: _dutyEdits[people[index].id],
                           plantOverride: _plantEdits[people[index].id],
                           switchingEnabled: switchingEnabled,
+                          exchangeHour: exchangeHour,
+                          exchangeMinute: exchangeMinute,
                           onDutyChanged: (value) => setState(() => _dutyEdits[people[index].id] = value),
                           onPlantChanged: (value) => setState(() => _plantEdits[people[index].id] = value),
                         ),
@@ -135,6 +139,8 @@ class _PersonRow extends StatelessWidget {
   final String? dutyOverride;
   final String? plantOverride;
   final bool switchingEnabled;
+  final int exchangeHour;
+  final int exchangeMinute;
   final ValueChanged<String> onDutyChanged;
   final ValueChanged<String> onPlantChanged;
 
@@ -143,6 +149,8 @@ class _PersonRow extends StatelessWidget {
     required this.dutyOverride,
     required this.plantOverride,
     required this.switchingEnabled,
+    required this.exchangeHour,
+    required this.exchangeMinute,
     required this.onDutyChanged,
     required this.onPlantChanged,
   });
@@ -151,7 +159,7 @@ class _PersonRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final duty = dutyOverride ?? person.dutyStatus;
     final plant = plantOverride ?? person.plant;
-    final currentlyAt = effectivePlant(plant, switchingEnabled: switchingEnabled);
+    final currentlyAt = effectivePlant(plant, switchingEnabled: switchingEnabled, exchangeHour: exchangeHour, exchangeMinute: exchangeMinute);
     final swapped = currentlyAt != plant;
 
     return Card(

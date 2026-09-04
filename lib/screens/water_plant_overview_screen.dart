@@ -80,6 +80,26 @@ class WaterPlantOverviewBody extends StatelessWidget {
           );
         }
         final switchingEnabled = switchingEnabledFrom(settingsSnapshot.data?.data());
+        final exchangeHour = exchangeHourFrom(settingsSnapshot.data?.data());
+        final exchangeMinute = exchangeMinuteFrom(settingsSnapshot.data?.data());
+        final exchangeLabel = TimeOfDay(hour: exchangeHour, minute: exchangeMinute).format(context);
+
+        Future<void> pickExchangeTime() async {
+          final picked = await showTimePicker(
+            context: context,
+            initialTime: TimeOfDay(hour: exchangeHour, minute: exchangeMinute),
+          );
+          if (picked == null) return;
+          try {
+            await waterPlantSettingsRef.set({'exchangeHour': picked.hour, 'exchangeMinute': picked.minute}, SetOptions(merge: true));
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Could not save: $e'), duration: const Duration(seconds: 6)),
+              );
+            }
+          }
+        }
 
         return Column(
           children: [
@@ -87,30 +107,42 @@ class WaterPlantOverviewBody extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                 child: Card(
-                  child: SwitchListTile(
-                    title: const Text('Switching', style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(
-                      switchingEnabled
-                          ? 'On — personnel automatically swap plants after 7:30 AM.'
-                          : 'Off — personnel stay on their morning-assigned plant all day.',
-                    ),
-                    value: switchingEnabled,
-                    onChanged: (value) async {
-                      try {
-                        // Awaited (not fire-and-forget) specifically so a
-                        // rejected write is visible instead of silently
-                        // reverting next time this doc is re-read — that
-                        // silent-revert is exactly what "the toggle
-                        // doesn't work" looks like from the outside.
-                        await waterPlantSettingsRef.set({'switchingEnabled': value}, SetOptions(merge: true));
-                      } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Could not save: $e'), duration: const Duration(seconds: 6)),
-                          );
-                        }
-                      }
-                    },
+                  child: Column(
+                    children: [
+                      SwitchListTile(
+                        title: const Text('Switching', style: TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text(
+                          switchingEnabled
+                              ? 'On — personnel automatically swap plants at $exchangeLabel.'
+                              : 'Off — personnel stay on their morning-assigned plant all day.',
+                        ),
+                        value: switchingEnabled,
+                        onChanged: (value) async {
+                          try {
+                            // Awaited (not fire-and-forget) specifically so a
+                            // rejected write is visible instead of silently
+                            // reverting next time this doc is re-read — that
+                            // silent-revert is exactly what "the toggle
+                            // doesn't work" looks like from the outside.
+                            await waterPlantSettingsRef.set({'switchingEnabled': value}, SetOptions(merge: true));
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Could not save: $e'), duration: const Duration(seconds: 6)),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                      if (switchingEnabled)
+                        ListTile(
+                          leading: const Icon(Icons.schedule_outlined),
+                          title: const Text('Exchange time'),
+                          subtitle: Text(exchangeLabel),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: pickExchangeTime,
+                        ),
+                    ],
                   ),
                 ),
               ),
@@ -125,13 +157,17 @@ class WaterPlantOverviewBody extends StatelessWidget {
                     return Center(child: Text('Unable to load: ${snapshot.error}'));
                   }
 
+                  // On-leave personnel aren't physically at either plant
+                  // today, so they're excluded from both tiles entirely
+                  // rather than shown with an "On-Leave" badge.
                   final people = (snapshot.data?.docs ?? [])
                       .where((d) => d.id != waterPlantSettingsDocId)
                       .map((d) => WaterPlantPersonnel.fromMap(d.id, d.data()))
+                      .where((p) => p.dutyStatus != 'on_leave')
                       .toList();
 
-                  final gp = people.where((p) => effectivePlant(p.plant, switchingEnabled: switchingEnabled) == 'gp').toList();
-                  final softgel = people.where((p) => effectivePlant(p.plant, switchingEnabled: switchingEnabled) == 'softgel').toList();
+                  final gp = people.where((p) => effectivePlant(p.plant, switchingEnabled: switchingEnabled, exchangeHour: exchangeHour, exchangeMinute: exchangeMinute) == 'gp').toList();
+                  final softgel = people.where((p) => effectivePlant(p.plant, switchingEnabled: switchingEnabled, exchangeHour: exchangeHour, exchangeMinute: exchangeMinute) == 'softgel').toList();
 
                   return Padding(
                     padding: const EdgeInsets.all(16),

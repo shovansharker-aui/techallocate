@@ -6,6 +6,7 @@ import 'machines_screen.dart';
 import '../utils/app_colors.dart';
 import '../services/theme_service.dart';
 import '../widgets_task_type_chart.dart';
+import '../widgets_notify_setting.dart';
 
 /// Thin Scaffold wrapper around SettingsBody, so it can still be pushed
 /// as its own screen anywhere that needs it, while the mobile bottom-nav
@@ -99,6 +100,10 @@ class _SettingsBodyState extends State<SettingsBody> {
           const Text('Dashboard', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           const ChartModeSetting(),
+          const SizedBox(height: 24),
+          const Text('Notify', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          const NotifySetting(),
           const SizedBox(height: 24),
           const Text('Android Communication', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/app_user.dart';
 import '../services/technician_session_service.dart';
+import '../services/notify_service.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_web_dashboard_screen.dart';
 import 'water_plant_overview_screen.dart';
@@ -12,10 +13,27 @@ import 'technician_screen.dart';
 import '../widgets_root_back_scope.dart';
 import '../utils/app_colors.dart';
 
-class UserSessionGate extends StatelessWidget {
+class UserSessionGate extends StatefulWidget {
   final String docId;
 
   const UserSessionGate({super.key, required this.docId});
+
+  @override
+  State<UserSessionGate> createState() => _UserSessionGateState();
+}
+
+class _UserSessionGateState extends State<UserSessionGate> {
+  @override
+  void initState() {
+    super.initState();
+    // Runs exactly once per app session, independent of how many times
+    // the StreamBuilder below rebuilds from ordinary user-doc updates
+    // (status changes, etc.) — covers every role, since this gate is
+    // the one place all of them pass through right after login.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) notifyService.checkAndShow(context);
+    });
+  }
 
   Future<void> _logout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
@@ -48,7 +66,7 @@ class UserSessionGate extends StatelessWidget {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('users')
-          .doc(docId)
+          .doc(widget.docId)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -71,7 +89,7 @@ class UserSessionGate extends StatelessWidget {
           );
         }
 
-        final user = AppUser.fromMap(docId, snapshot.data!.data()!);
+        final user = AppUser.fromMap(widget.docId, snapshot.data!.data()!);
 
         switch (user.role.toLowerCase()) {
           case 'admin':
