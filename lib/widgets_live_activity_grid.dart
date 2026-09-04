@@ -112,29 +112,38 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                       children: [
                                         Expanded(
                                           child: Text(
-                                            machine?.fullLabel ?? (order.machineId.isEmpty ? 'No machine' : order.machineId),
+                                            // Grouped tasks lead with the
+                                            // group name (e.g. "Air
+                                            // Shower") rather than the
+                                            // specific unit's own name,
+                                            // since the equipment-id line
+                                            // below already lists exactly
+                                            // which units are involved.
+                                            (order.groupMachineIds.isNotEmpty && machine?.isGrouped == true)
+                                                ? machine!.group
+                                                : (machine?.fullLabel ?? (order.machineId.isEmpty ? 'No machine' : order.machineId)),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                                           ),
                                         ),
                                         const SizedBox(width: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                          decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(5)),
-                                          child: Text(_typeCode(order), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                        ),
+                                        Text(_duration(order.startedAt), style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w600)),
                                       ],
                                     ),
-                                    const SizedBox(height: 8),
-                                    _peopleRow(context, Icons.engineering_outlined, technicianNames, 'No JO'),
                                     if (order.groupMachineIds.isNotEmpty) ...[
-                                      const SizedBox(height: 4),
+                                      const SizedBox(height: 2),
                                       Text(
-                                        'Group: ${machine?.group ?? ''} — ${order.groupMachineIds.map((id) => machines[id]?.equipmentId ?? id).join(', ')}',
+                                        ({machine?.equipmentId ?? '', ...order.groupMachineIds.map((id) => machines[id]?.equipmentId ?? id)}
+                                              .where((id) => id.isNotEmpty)
+                                              .toList()
+                                              ..sort())
+                                            .join(', '),
                                         style: const TextStyle(fontSize: 11, color: AppColors.muted),
                                       ),
                                     ],
+                                    const SizedBox(height: 8),
+                                    _peopleRow(context, Icons.engineering_outlined, technicianNames, 'No JO'),
                                     if (helperNames.isNotEmpty) ...[
                                       const SizedBox(height: 4),
                                       _peopleRow(context, Icons.handyman_outlined, helperNames, ''),
@@ -142,9 +151,11 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                     const SizedBox(height: 8),
                                     Row(
                                       children: [
-                                        const Icon(Icons.timer_outlined, size: 13, color: AppColors.muted),
-                                        const SizedBox(width: 4),
-                                        Text(_duration(order.startedAt), style: const TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w600)),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                          decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(5)),
+                                          child: Text(_typeCode(order), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                        ),
                                         const Spacer(),
                                         TextButton.icon(
                                           style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 28), visualDensity: VisualDensity.compact),
@@ -258,11 +269,16 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
       children: [
         Icon(icon, size: 13, color: AppColors.muted),
         const SizedBox(width: 4),
+        // A plain joined string with an explicit separator, rather than
+        // a Wrap of separate Text widgets — the Wrap's inter-item gap
+        // alone (no visible character between names) read as a rendering
+        // glitch rather than an intentional gap between two names.
         Expanded(
-          child: Wrap(
-            spacing: 6,
-            runSpacing: 2,
-            children: names.map((n) => Text(n, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))).toList(),
+          child: Text(
+            names.join(' * '),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
           ),
         ),
       ],
