@@ -130,7 +130,10 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                     _peopleRow(context, Icons.engineering_outlined, technicianNames, 'No JO'),
                                     if (order.groupMachineIds.isNotEmpty) ...[
                                       const SizedBox(height: 4),
-                                      Text('Other units: ${order.groupMachineIds.map((id) => machines[id]?.equipmentId ?? id).join(', ')}', style: const TextStyle(fontSize: 11, color: AppColors.muted)),
+                                      Text(
+                                        'Group: ${machine?.group ?? ''} — ${order.groupMachineIds.map((id) => machines[id]?.equipmentId ?? id).join(', ')}',
+                                        style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                                      ),
                                     ],
                                     if (helperNames.isNotEmpty) ...[
                                       const SizedBox(height: 4),
@@ -200,6 +203,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (machine?.isGrouped == true) _detailRow('Group', machine!.group),
               if (order.groupMachineIds.isNotEmpty)
                 _detailRow('Other units', order.groupMachineIds.map((id) => machines[id]?.equipmentId ?? id).join(', ')),
               if (machine != null && machine.equipmentId.isNotEmpty)

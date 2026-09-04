@@ -17,14 +17,20 @@ void completeWorkOrder({
   required List<String> technicianIds,
   required List<String> helperIds,
   required DateTime completedAt,
+  bool lateEntry = false,
 }) {
   final firestore = FirebaseFirestore.instance;
   final batch = firestore.batch();
 
-  batch.update(firestore.collection('work_orders').doc(orderId), {
+  final update = <String, dynamic>{
     'status': 'completed',
     'completedAt': Timestamp.fromDate(completedAt),
-  });
+  };
+  // Only overwrite lateEntry when this completion actually was backdated
+  // — leaves an already-true flag (e.g. from a LateEntryScreen record)
+  // alone rather than accidentally clearing it.
+  if (lateEntry) update['lateEntry'] = true;
+  batch.update(firestore.collection('work_orders').doc(orderId), update);
   for (final id in technicianIds) {
     batch.update(firestore.collection('users').doc(id), {
       'status': 'available',
@@ -42,8 +48,10 @@ void completeWorkOrder({
 }
 
 /// Shows a small "Now" vs "Specific time" choice, then returns the chosen
-/// completion DateTime — or null if the user cancelled.
-Future<DateTime?> pickCompletionTime(BuildContext context, {DateTime? startedAt}) async {
+/// completion time along with whether it was backdated — or null if the
+/// user cancelled. [isBacktime] is what callers use to decide whether to
+/// flag a completion as a late entry.
+Future<({DateTime time, bool isBacktime})?> pickCompletionTime(BuildContext context, {DateTime? startedAt}) async {
   final choice = await showDialog<String>(
     context: context,
     builder: (context) => AlertDialog(
@@ -58,7 +66,7 @@ Future<DateTime?> pickCompletionTime(BuildContext context, {DateTime? startedAt}
   );
 
   if (choice == null) return null;
-  if (choice == 'now') return DateTime.now();
+  if (choice == 'now') return (time: DateTime.now(), isBacktime: false);
 
   if (!context.mounted) return null;
   final now = DateTime.now();
@@ -77,5 +85,5 @@ Future<DateTime?> pickCompletionTime(BuildContext context, {DateTime? startedAt}
   );
   if (time == null) return null;
 
-  return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  return (time: DateTime(date.year, date.month, date.day, time.hour, time.minute), isBacktime: true);
 }

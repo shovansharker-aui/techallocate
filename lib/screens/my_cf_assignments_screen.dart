@@ -18,7 +18,8 @@ import 'assign_helper_task_screen.dart';
 // could ever close these out.
 class CfAssignmentsScreen extends StatelessWidget {
   final String uid;
-  const CfAssignmentsScreen({super.key, required this.uid});
+  final bool canAssign;
+  const CfAssignmentsScreen({super.key, required this.uid, this.canAssign = true});
 
   @override
   Widget build(BuildContext context) {
@@ -35,9 +36,10 @@ class CfAssignmentsScreen extends StatelessWidget {
                 child: ListTile(
                   leading: const CircleAvatar(child: Icon(Icons.person_add_alt_1)),
                   title: const Text('Assign a CF', style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Send a CF to a machine/task. You stay available.'),
+                  subtitle: Text(canAssign ? 'Send a CF to a machine/task. You stay available.' : 'Unavailable while on-leave.'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AssignHelperTaskScreen(uid: uid))),
+                  enabled: canAssign,
+                  onTap: canAssign ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AssignHelperTaskScreen(uid: uid))) : null,
                 ),
               ),
             ),

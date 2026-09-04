@@ -113,6 +113,8 @@ class _AdminWebDashboardScreenState extends State<AdminWebDashboardScreen> {
                 _title,
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
+              const Spacer(),
+              const Image(image: AssetImage('assets/renata_logo.png'), height: 40),
             ],
           ),
         ),

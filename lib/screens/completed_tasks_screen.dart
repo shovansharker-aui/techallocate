@@ -517,6 +517,7 @@ class _CompletedTaskDetailSheetState extends State<_CompletedTaskDetailSheet> {
                 if (order.lateEntry) ...[const SizedBox(width: 6), lateEntryBadge()],
               ]),
               const SizedBox(height: 14),
+              if (widget.machine?.isGrouped == true) _detailRow('Group', widget.machine!.group),
               if (widget.otherUnitLabels.isNotEmpty) _detailRow('Other units', widget.otherUnitLabels.join(', ')),
               if (machine != null && machine.equipmentId.isNotEmpty) _detailRow('Equipment ID', machine.equipmentId),
               _detailRow('Type', taskTypeName(order.type)),

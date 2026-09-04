@@ -46,6 +46,10 @@ class _AdminMobileShellState extends State<AdminMobileShell> {
         title: Text(_titles[_index]),
         actions: [
           IconButton(icon: const Icon(Icons.logout), tooltip: 'Log out', onPressed: widget.onLogout),
+          const Padding(
+            padding: EdgeInsets.only(right: 16, left: 4),
+            child: Image(image: AssetImage('assets/renata_logo.png'), height: 32),
+          ),
         ],
       ),
       body: _content,
