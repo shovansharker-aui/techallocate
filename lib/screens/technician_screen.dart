@@ -11,6 +11,7 @@ import '../utils/date_format.dart';
 import '../utils/duty_status.dart';
 import '../utils/machine_group.dart';
 import '../utils/task_type.dart';
+import '../utils/task_completion.dart';
 import '../services/status_reminder_notification.dart';
 import '../utils/offline_commit.dart';
 import 'my_cf_assignments_screen.dart';
