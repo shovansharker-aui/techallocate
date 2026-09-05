@@ -65,10 +65,10 @@ class _TaskTypeBreakdownCardState extends State<TaskTypeBreakdownCard> {
 
   void _startAutoRotate() {
     _autoRotateTimer?.cancel();
-    _autoRotateTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _autoRotateTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       if (!mounted || !_pageController.hasClients || _pageCount <= 1) return;
       final next = (_page + 1) % _pageCount;
-      _pageController.animateToPage(next, duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
+      _pageController.animateToPage(next, duration: const Duration(milliseconds: 550), curve: Curves.easeInOutCubicEmphasized);
     });
   }
 

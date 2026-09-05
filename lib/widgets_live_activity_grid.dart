@@ -275,7 +275,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
         // glitch rather than an intentional gap between two names.
         Expanded(
           child: Text(
-            names.join(' * '),
+            names.join(' · '),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),

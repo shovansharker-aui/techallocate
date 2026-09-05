@@ -28,28 +28,46 @@ class TechnicianScreen extends StatefulWidget {
   State<TechnicianScreen> createState() => _TechnicianScreenState();
 }
 
-class _TechnicianScreenState extends State<TechnicianScreen> {
-  bool _checkedMandatoryStatus = false;
+class _TechnicianScreenState extends State<TechnicianScreen> with WidgetsBindingObserver {
+  bool _dialogShowing = false;
 
   @override
   void initState() {
     super.initState();
-    // Runs exactly once per app session (this State object persists
-    // across the user-doc stream updates that recreate widget.user, so
-    // this never re-fires just because dutyStatus changed) — matching
-    // "first login of the day" rather than "every time anything reloads".
-    final now = DateTime.now();
-    final needsPrompt = now.hour >= 8 && widget.user.dutyStatusDate != todayKey(now);
-    _checkedMandatoryStatus = true;
-    if (needsPrompt) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _showMandatoryStatusDialog());
-      // Also fires a real OS-level notification on web/PWA (browser
-      // Notification API) as a second, more attention-grabbing nudge —
-      // a no-op on the native Android app for now, since a true
-      // system notification there needs a plugin plus native manifest
-      // changes that aren't wired up yet.
-      showStatusReminderNotification();
+    WidgetsBinding.instance.addObserver(this);
+    // Checked on every app launch, not just from 8:00 AM on — a JO must
+    // set today's status before they can do anything else, full stop.
+    // Also re-checked on resume (below) so a device left open overnight
+    // still gets gated once the calendar day rolls over, instead of only
+    // ever checking once per app session.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowMandatoryStatusDialog());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _maybeShowMandatoryStatusDialog();
     }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  void _maybeShowMandatoryStatusDialog() {
+    if (_dialogShowing) return;
+    final needsPrompt = widget.user.dutyStatusDate != todayKey();
+    if (!needsPrompt) return;
+    _dialogShowing = true;
+    _showMandatoryStatusDialog();
+    // Also fires a real OS-level notification on web/PWA (browser
+    // Notification API) as a second, more attention-grabbing nudge — a
+    // no-op on the native Android app for now, since a true system
+    // notification there needs a plugin plus native manifest changes
+    // that aren't wired up yet.
+    showStatusReminderNotification();
   }
 
   Future<void> _showMandatoryStatusDialog() async {
@@ -86,6 +104,7 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
       'status': choice == 'on_leave' ? 'on_leave' : (assigned ? 'assigned' : 'available'),
       'dutyStatusDate': todayKey(),
     });
+    _dialogShowing = false;
   }
 
   Future<void> _setDutyStatus(BuildContext context) async {
@@ -157,6 +176,10 @@ class _TechnicianScreenState extends State<TechnicianScreen> {
                 actions: [
                   IconButton(icon: const Icon(Icons.toggle_on_outlined), tooltip: 'Set Status', onPressed: () => _setDutyStatus(context)),
                   IconButton(icon: const Icon(Icons.logout), tooltip: 'Log out', onPressed: widget.onLogout),
+                  const Padding(
+                    padding: EdgeInsets.only(right: 16, left: 4),
+                    child: Image(image: AssetImage('assets/renata_logo.png'), height: 32),
+                  ),
                 ],
               ),
               body: _TechnicianHome(uid: user.uid, user: user),
