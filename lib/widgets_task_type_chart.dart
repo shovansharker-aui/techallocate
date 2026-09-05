@@ -7,6 +7,7 @@ import 'models/app_user.dart';
 import 'models/work_order.dart';
 import 'services/chart_mode_service.dart';
 import 'utils/app_colors.dart';
+import 'utils/engaged_time.dart';
 import 'utils/task_type.dart';
 
 class TaskTypeDatum {
@@ -120,21 +121,29 @@ class _TaskTypeBreakdownCardState extends State<TaskTypeBreakdownCard> {
                     final typeTotal = typeData.fold<int>(0, (s, d) => s + d.value);
 
                     // --- Page 2: by JO (chart = seconds engaged, legend = task count) ---
-                    final joSeconds = <String, int>{};
+                    // joTaskCount is a plain per-task count — each task
+                    // counted once, same as everywhere else. joSeconds is
+                    // NOT durations summed directly: a JO running two
+                    // tasks at once for an hour worked one hour, not two,
+                    // so each JO's intervals are merged first (see
+                    // unionDuration) before turning into a total.
+                    final joIntervals = <String, List<EngagedInterval>>{};
                     final joTaskCount = <String, int>{};
-                    for (final o in completedOrders) {
+                    void addOrder(WorkOrder o, DateTime end) {
+                      final start = o.startedAt;
+                      if (start == null) return;
                       for (final id in o.assignedTechnicianIds) {
-                        joSeconds[id] = (joSeconds[id] ?? 0) + (o.durationSeconds ?? 0);
+                        (joIntervals[id] ??= []).add((start: start, end: end));
                         joTaskCount[id] = (joTaskCount[id] ?? 0) + 1;
                       }
+                    }
+                    for (final o in completedOrders) {
+                      addOrder(o, o.completedAt ?? (o.startedAt ?? now));
                     }
                     for (final o in runningOrders) {
-                      final elapsed = now.difference(o.startedAt ?? now).inSeconds;
-                      for (final id in o.assignedTechnicianIds) {
-                        joSeconds[id] = (joSeconds[id] ?? 0) + (elapsed < 0 ? 0 : elapsed);
-                        joTaskCount[id] = (joTaskCount[id] ?? 0) + 1;
-                      }
+                      addOrder(o, now);
                     }
+                    final joSeconds = <String, int>{for (final e in joIntervals.entries) e.key: unionDuration(e.value).inSeconds};
                     final joIds = joSeconds.keys.toList()..sort((a, b) => (joSeconds[b] ?? 0).compareTo(joSeconds[a] ?? 0));
                     final joData = <TaskTypeDatum>[];
                     for (var i = 0; i < joIds.length; i++) {

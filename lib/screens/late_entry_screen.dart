@@ -129,7 +129,9 @@ class _LateEntryScreenState extends State<LateEntryScreen> {
     batch.set(ref, {
       'type': _type,
       'preventiveTypes': _type == 'preventive' ? _preventiveTypes.toList() : <String>[],
-      'machineId': _selectedMachineId,
+      // See the equivalent write in technician_screen.dart's _startTask —
+      // never null here, since "no machine" is represented as ''.
+      'machineId': _selectedMachineId ?? '',
       'groupMachineIds': _selectedGroupUnitIds.toList(),
       'description': '',
       'status': 'completed',
