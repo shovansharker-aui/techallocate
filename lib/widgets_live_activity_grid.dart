@@ -10,6 +10,7 @@ import 'utils/task_type.dart';
 import 'utils/task_completion.dart';
 import 'utils/date_format.dart';
 import 'utils/app_colors.dart';
+import 'widgets_people_line.dart';
 
 class LiveActivityGrid extends StatefulWidget {
   /// When set, only shows tasks of this type (e.g. 'preventive'). Used by
@@ -143,7 +144,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                       ),
                                     ],
                                     const SizedBox(height: 8),
-                                    _peopleLine(technicianNames, helperNames),
+                                    PeopleLine(technicianNames, helperNames),
                                     const SizedBox(height: 8),
                                     Row(
                                       children: [
@@ -253,56 +254,5 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
         ),
       ),
     );
-  }
-
-  // JO(s) and CF(s) on one line — "<JO icon> name · name  <CF icon> name"
-  // — rather than the two stacked rows this used to be, so a task card
-  // doesn't grow taller just because it has helpers. Built as one
-  // Text.rich (not two Rows sharing a line) so the whole thing ellipsizes
-  // together if it's too long for the card, instead of the JO half
-  // pushing the CF half off into nowhere.
-  Widget _peopleLine(List<String> technicianNames, List<String> helperNames) {
-    const iconSize = 13.0;
-    const nameStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w500);
-    if (technicianNames.isEmpty && helperNames.isEmpty) {
-      return const Row(children: [
-        Icon(Icons.engineering_outlined, size: iconSize, color: AppColors.muted),
-        SizedBox(width: 4),
-        Text('No JO', style: TextStyle(fontSize: 12, color: AppColors.muted)),
-      ]);
-    }
-    return Text.rich(
-      TextSpan(children: [
-        WidgetSpan(alignment: PlaceholderAlignment.middle, child: const Icon(Icons.engineering_outlined, size: iconSize, color: AppColors.muted)),
-        const WidgetSpan(child: SizedBox(width: 4)),
-        if (technicianNames.isEmpty)
-          const TextSpan(text: 'No JO', style: TextStyle(fontSize: 12, color: AppColors.muted))
-        else
-          ..._dotJoinedSpans(technicianNames, nameStyle),
-        if (helperNames.isNotEmpty) ...[
-          // A brief blank spacer between the two groups, not another dot
-          // — the dot is reserved for separating names within one group.
-          const WidgetSpan(child: SizedBox(width: 14)),
-          WidgetSpan(alignment: PlaceholderAlignment.middle, child: const Icon(Icons.handyman_outlined, size: iconSize, color: AppColors.muted)),
-          const WidgetSpan(child: SizedBox(width: 4)),
-          ..._dotJoinedSpans(helperNames, nameStyle),
-        ],
-      ]),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    );
-  }
-
-  // Names joined by a bold middle dot — bold so the separator reads as a
-  // deliberate divider rather than a stray punctuation mark at this font
-  // size.
-  List<InlineSpan> _dotJoinedSpans(List<String> names, TextStyle nameStyle) {
-    final dotStyle = nameStyle.copyWith(fontWeight: FontWeight.w900);
-    final spans = <InlineSpan>[];
-    for (var i = 0; i < names.length; i++) {
-      spans.add(TextSpan(text: names[i], style: nameStyle));
-      if (i != names.length - 1) spans.add(TextSpan(text: ' · ', style: dotStyle));
-    }
-    return spans;
   }
 }

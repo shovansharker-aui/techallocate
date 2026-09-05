@@ -7,6 +7,7 @@ import '../models/app_user.dart';
 import '../utils/date_format.dart';
 import '../utils/task_type.dart';
 import '../utils/app_colors.dart';
+import '../widgets_people_line.dart';
 
 /// Thin Scaffold wrapper around CompletedTasksBody, so it can be pushed
 /// as its own screen (desktop web's "View History" button) while the
@@ -497,6 +498,15 @@ class _CompletedTaskDetailSheetState extends State<_CompletedTaskDetailSheet> {
   Widget build(BuildContext context) {
     final order = widget.order;
     final machine = widget.machine;
+    // Main unit + other units, merged into one sorted list under a
+    // single "Equipment ID" row — the nickname shown in the title above
+    // already identifies the machine/group, so a separate "Group: <name>"
+    // row would just repeat it.
+    final equipmentIds = {
+      if (machine != null && machine.equipmentId.isNotEmpty) machine.equipmentId,
+      ...widget.otherUnitLabels,
+    }.toList()
+      ..sort();
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
@@ -515,18 +525,19 @@ class _CompletedTaskDetailSheetState extends State<_CompletedTaskDetailSheet> {
                   ),
                 ),
                 if (order.lateEntry) ...[const SizedBox(width: 6), lateEntryBadge()],
+                const SizedBox(width: 8),
+                Text(_duration(order.durationSeconds), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
               ]),
-              const SizedBox(height: 14),
-              if (widget.machine?.isGrouped == true) _detailRow('Group', widget.machine!.group),
-              if (widget.otherUnitLabels.isNotEmpty) _detailRow('Other units', widget.otherUnitLabels.join(', ')),
-              if (machine != null && machine.equipmentId.isNotEmpty) _detailRow('Equipment ID', machine.equipmentId),
-              _detailRow('Type', taskTypeName(order.type)),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(child: _detailRow('Started', formatDateTime12h(order.startedAt))),
+                Expanded(child: _detailRow('Completed', formatDateTime12h(order.completedAt))),
+              ]),
+              const SizedBox(height: 2),
+              PeopleLine(widget.technicianNames, widget.helperNames),
+              const SizedBox(height: 10),
+              if (equipmentIds.isNotEmpty) _detailRow('Equipment ID', equipmentIds.join(', ')),
               if (order.preventiveTypes.isNotEmpty) _detailRow('Preventive type', order.preventiveTypes.join(', ')),
-              if (widget.technicianNames.isNotEmpty) _detailRow('Junior Officer(s)', widget.technicianNames.join(', ')),
-              if (widget.helperNames.isNotEmpty) _detailRow('CF(s)', widget.helperNames.join(', ')),
-              _detailRow('Started', formatDateTime12h(order.startedAt)),
-              _detailRow('Completed', formatDateTime12h(order.completedAt)),
-              _detailRow('Duration', _duration(order.durationSeconds)),
               if (order.description.trim().isNotEmpty) ...[
                 const SizedBox(height: 8),
                 const Text('Starting remarks', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.muted)),
