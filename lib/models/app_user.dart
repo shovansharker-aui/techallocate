@@ -13,6 +13,12 @@ class AppUser {
   // TechnicianScreen's mandatory check-in).
   final String dutyStatusDate;
   final String? currentTaskId;
+  // Id of the last admin Notify broadcast this person has already been
+  // shown — kept on their own account doc (not local device storage) so
+  // "seen it once" holds across devices/browsers/incognito tabs, all of
+  // which are the same person as far as this app can tell. See
+  // NotifyService.
+  final String lastNotifySeenId;
 
   AppUser({
     required this.uid,
@@ -26,6 +32,7 @@ class AppUser {
     required this.dutyStatus,
     this.dutyStatusDate = '',
     this.currentTaskId,
+    this.lastNotifySeenId = '',
   });
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> data) {
@@ -41,6 +48,7 @@ class AppUser {
       dutyStatus: (data['dutyStatus'] ?? data['shift'] ?? 'day').toString(),
       dutyStatusDate: (data['dutyStatusDate'] ?? '').toString(),
       currentTaskId: data['currentTaskId'],
+      lastNotifySeenId: (data['lastNotifySeenId'] ?? '').toString(),
     );
   }
 }
