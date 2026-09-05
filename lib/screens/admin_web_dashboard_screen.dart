@@ -51,7 +51,7 @@ class _AdminWebDashboardScreenState extends State<AdminWebDashboardScreen> {
       case _AdminSection.archive:
         return const ArchiveManagementBody();
       case _AdminSection.graphs:
-        return const GraphsBody();
+        return const GraphsBody(showEmployeeHours: true);
       case _AdminSection.settings:
         return const AdminSettingsBody();
     }

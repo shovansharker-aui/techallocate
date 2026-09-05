@@ -9,6 +9,7 @@ import '../models/work_order.dart';
 import '../widgets_root_back_scope.dart';
 import '../utils/date_format.dart';
 import '../utils/duty_status.dart';
+import '../utils/engaged_time.dart';
 import '../utils/machine_group.dart';
 import '../utils/task_type.dart';
 import '../utils/task_completion.dart';
@@ -266,7 +267,10 @@ class _TodayStatsCard extends StatelessWidget {
             .where((o) => o.completedAt != null && !o.completedAt!.isBefore(todayStart))
             .toList();
         final count = orders.length;
-        final totalSeconds = orders.fold<int>(0, (sum, o) => sum + (o.durationSeconds ?? 0));
+        // Merge overlapping tasks' time rather than summing durationSeconds
+        // directly — running two tasks at once for an hour is one hour
+        // engaged, not two. See unionDuration.
+        final totalSeconds = unionDuration(orders.where((o) => o.startedAt != null).map((o) => (start: o.startedAt!, end: o.completedAt ?? o.startedAt!))).inSeconds;
         final hours = totalSeconds ~/ 3600;
         final minutes = (totalSeconds % 3600) ~/ 60;
         final engagedLabel = hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
@@ -531,7 +535,14 @@ class _StartTaskPageState extends State<_StartTaskPage> {
     batch.set(ref, {
       'type': _type,
       'preventiveTypes': _type == 'preventive' ? _preventiveTypes.toList() : <String>[],
-      'machineId': _selectedMachineId,
+      // Never write null here: every reader of this field (this app's
+      // own WorkOrder.fromMap included) treats "no machine" as an empty
+      // string, not null, and a raw null in this field is very likely
+      // exactly what an "Others" task with no machine picked was
+      // silently rejected for by Firestore's rules — the task looked
+      // like it started, then vanished back to the home screen once the
+      // rejection came back and the optimistic local write rolled back.
+      'machineId': _selectedMachineId ?? '',
       'groupMachineIds': _selectedGroupUnitIds.toList(),
       'description': _remarksController.text.trim(),
       'status': 'in_progress',
