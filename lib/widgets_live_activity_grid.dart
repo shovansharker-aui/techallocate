@@ -79,8 +79,8 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
 
                     // One tile per task, not per person.
                     orders.sort((a, b) {
-                      final aName = machines[a.machineId]?.fullLabel ?? a.machineId;
-                      final bName = machines[b.machineId]?.fullLabel ?? b.machineId;
+                      final aName = machines[a.machineId]?.displayName ?? a.machineId;
+                      final bName = machines[b.machineId]?.displayName ?? b.machineId;
                       return aName.toLowerCase().compareTo(bName.toLowerCase());
                     });
 
@@ -121,7 +121,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                             // which units are involved.
                                             (order.groupMachineIds.isNotEmpty && machine?.isGrouped == true)
                                                 ? machine!.group
-                                                : (machine?.fullLabel ?? (order.machineId.isEmpty ? 'No machine' : order.machineId)),
+                                                : (machine?.displayName ?? (order.machineId.isEmpty ? 'No machine' : order.machineId)),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
@@ -143,11 +143,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                       ),
                                     ],
                                     const SizedBox(height: 8),
-                                    _peopleRow(context, Icons.engineering_outlined, technicianNames, 'No JO'),
-                                    if (helperNames.isNotEmpty) ...[
-                                      const SizedBox(height: 4),
-                                      _peopleRow(context, Icons.handyman_outlined, helperNames, ''),
-                                    ],
+                                    _peopleLine(technicianNames, helperNames),
                                     const SizedBox(height: 8),
                                     Row(
                                       children: [
@@ -259,29 +255,54 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
     );
   }
 
-  Widget _peopleRow(BuildContext context, IconData icon, List<String> names, String emptyLabel) {
-    if (names.isEmpty) {
-      if (emptyLabel.isEmpty) return const SizedBox.shrink();
-      return Row(children: [Icon(icon, size: 13, color: AppColors.muted), const SizedBox(width: 4), Expanded(child: Text(emptyLabel, style: const TextStyle(fontSize: 12, color: AppColors.muted)))]);
+  // JO(s) and CF(s) on one line — "<JO icon> name · name  <CF icon> name"
+  // — rather than the two stacked rows this used to be, so a task card
+  // doesn't grow taller just because it has helpers. Built as one
+  // Text.rich (not two Rows sharing a line) so the whole thing ellipsizes
+  // together if it's too long for the card, instead of the JO half
+  // pushing the CF half off into nowhere.
+  Widget _peopleLine(List<String> technicianNames, List<String> helperNames) {
+    const iconSize = 13.0;
+    const nameStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w500);
+    if (technicianNames.isEmpty && helperNames.isEmpty) {
+      return const Row(children: [
+        Icon(Icons.engineering_outlined, size: iconSize, color: AppColors.muted),
+        SizedBox(width: 4),
+        Text('No JO', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+      ]);
     }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 13, color: AppColors.muted),
-        const SizedBox(width: 4),
-        // A plain joined string with an explicit separator, rather than
-        // a Wrap of separate Text widgets — the Wrap's inter-item gap
-        // alone (no visible character between names) read as a rendering
-        // glitch rather than an intentional gap between two names.
-        Expanded(
-          child: Text(
-            names.join(' · '),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-          ),
-        ),
-      ],
+    return Text.rich(
+      TextSpan(children: [
+        WidgetSpan(alignment: PlaceholderAlignment.middle, child: const Icon(Icons.engineering_outlined, size: iconSize, color: AppColors.muted)),
+        const WidgetSpan(child: SizedBox(width: 4)),
+        if (technicianNames.isEmpty)
+          const TextSpan(text: 'No JO', style: TextStyle(fontSize: 12, color: AppColors.muted))
+        else
+          ..._dotJoinedSpans(technicianNames, nameStyle),
+        if (helperNames.isNotEmpty) ...[
+          // A brief blank spacer between the two groups, not another dot
+          // — the dot is reserved for separating names within one group.
+          const WidgetSpan(child: SizedBox(width: 14)),
+          WidgetSpan(alignment: PlaceholderAlignment.middle, child: const Icon(Icons.handyman_outlined, size: iconSize, color: AppColors.muted)),
+          const WidgetSpan(child: SizedBox(width: 4)),
+          ..._dotJoinedSpans(helperNames, nameStyle),
+        ],
+      ]),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
+  }
+
+  // Names joined by a bold middle dot — bold so the separator reads as a
+  // deliberate divider rather than a stray punctuation mark at this font
+  // size.
+  List<InlineSpan> _dotJoinedSpans(List<String> names, TextStyle nameStyle) {
+    final dotStyle = nameStyle.copyWith(fontWeight: FontWeight.w900);
+    final spans = <InlineSpan>[];
+    for (var i = 0; i < names.length; i++) {
+      spans.add(TextSpan(text: names[i], style: nameStyle));
+      if (i != names.length - 1) spans.add(TextSpan(text: ' · ', style: dotStyle));
+    }
+    return spans;
   }
 }

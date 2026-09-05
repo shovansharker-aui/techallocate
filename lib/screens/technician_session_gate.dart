@@ -29,7 +29,7 @@ class _UserSessionGateState extends State<UserSessionGate> {
     if (_notifyChecked) return;
     _notifyChecked = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) notifyService.checkAndShow(context, role: user.role.toLowerCase());
+      if (mounted) notifyService.checkAndShow(context, user: user);
     });
   }
 
