@@ -47,7 +47,7 @@ class _AdminWebDashboardScreenState extends State<AdminWebDashboardScreen> {
       case _AdminSection.maintenance:
         return SingleChildScrollView(padding: const EdgeInsets.all(24), child: const AdminMonitoringPanel());
       case _AdminSection.waterPlant:
-        return const WaterPlantOverviewBody();
+        return const WaterPlantOverviewBody(hideOffDutyDayStaff: true);
       case _AdminSection.archive:
         return const ArchiveManagementBody();
       case _AdminSection.graphs:

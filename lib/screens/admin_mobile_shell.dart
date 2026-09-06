@@ -31,7 +31,7 @@ class _AdminMobileShellState extends State<AdminMobileShell> {
   Widget get _content {
     switch (_index) {
       case 0: return const ArchiveManagementBody();
-      case 1: return const WaterPlantOverviewBody();
+      case 1: return const WaterPlantOverviewBody(hideOffDutyDayStaff: true);
       case 2: return SingleChildScrollView(padding: const EdgeInsets.all(16), child: const AdminMonitoringPanel());
       case 3: return const SettingsBody();
       case 4: return const CompletedTasksBody();
