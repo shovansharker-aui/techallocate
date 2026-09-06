@@ -20,14 +20,25 @@ const _personLineColor = Color(0xFFED7D31);
 /// full size with axis labels — no separate tap-to-expand view needed
 /// anymore.
 class WorkDensityCard extends StatelessWidget {
-  const WorkDensityCard({super.key});
+  // null = today, live, window keeps growing to now (the original,
+  // still-default behavior). A past date shows that whole day instead,
+  // 8:00 AM to midnight, since there's no "now" partway through a day
+  // that's already over. Only the desktop Analysis view ever passes a
+  // non-null date (see GraphsBody's day nav) — the mobile embed always
+  // shows today.
+  final DateTime? date;
+  const WorkDensityCard({super.key, this.date});
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final eightAm = DateTime(now.year, now.month, now.day, 8);
+    final day = date ?? now;
+    final isToday = day.year == now.year && day.month == now.month && day.day == now.day;
+    final eightAm = DateTime(day.year, day.month, day.day, 8);
     final windowStart = eightAm;
-    final hasStarted = !now.isBefore(eightAm);
+    final windowEnd = isToday ? now : DateTime(day.year, day.month, day.day, 23, 59, 59);
+    final hasStarted = isToday ? !now.isBefore(eightAm) : true;
+    final titleSuffix = isToday ? 'Since 8:00 AM' : formatDate(day);
 
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -39,13 +50,13 @@ class WorkDensityCard extends StatelessWidget {
             Row(children: [
               const Icon(Icons.show_chart, size: 20),
               const SizedBox(width: 8),
-              const Expanded(child: Text('Work Density · Since 8:00 AM', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+              Expanded(child: Text('Work Density · $titleSuffix', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
             ]),
             const SizedBox(height: 12),
             SizedBox(
               height: 220,
               child: hasStarted
-                  ? _WorkDensityChart(windowStart: windowStart, windowEnd: now)
+                  ? _WorkDensityChart(windowStart: windowStart, windowEnd: windowEnd)
                   : const Center(child: Text("The work day hasn't started yet — check back after 8:00 AM.", style: TextStyle(color: AppColors.muted, fontSize: 12))),
             ),
             const SizedBox(height: 10),
@@ -99,6 +110,7 @@ class _WorkDensityChart extends StatelessWidget {
               .collection('work_orders')
               .where('status', isEqualTo: 'completed')
               .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(windowStart))
+              .where('completedAt', isLessThanOrEqualTo: Timestamp.fromDate(windowEnd))
               .snapshots(),
           builder: (context, completedSnapshot) {
             final orders = [

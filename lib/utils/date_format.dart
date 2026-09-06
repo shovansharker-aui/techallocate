@@ -20,3 +20,18 @@ String formatTime12h(DateTime value) {
   final hour12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
   return '$hour12:${_two(local.minute)} $period';
 }
+
+/// "25/12/2026" — same dd/mm/yyyy convention as formatDateTime12h, just
+/// without the time, for date-only pickers (e.g. Analysis's day nav).
+String formatDate(DateTime value) {
+  final local = value.toLocal();
+  return '${_two(local.day)}/${_two(local.month)}/${local.year}';
+}
+
+const _monthNames = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/// "September 2026" — used by Analysis's month nav.
+String formatMonthYear(DateTime value) => '${_monthNames[value.month - 1]} ${value.year}';
