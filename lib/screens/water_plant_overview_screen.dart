@@ -57,7 +57,15 @@ class WaterPlantOverviewBody extends StatelessWidget {
   // tiles but can't flip the switch itself.
   final bool showSwitchingToggle;
 
-  const WaterPlantOverviewBody({super.key, this.showSwitchingToggle = true});
+  // Admin's live overview drops day-duty personnel off the list once
+  // their shift is over (4:30 PM) — admin is checking who's physically
+  // there right now. The water_plant_manager's own dashboard needs to
+  // keep seeing everyone regardless of time, since they're the one
+  // managing tomorrow's allocation from this same screen, so this stays
+  // false there.
+  final bool hideOffDutyDayStaff;
+
+  const WaterPlantOverviewBody({super.key, this.showSwitchingToggle = true, this.hideOffDutyDayStaff = false});
 
   @override
   Widget build(BuildContext context) {
@@ -157,13 +165,18 @@ class WaterPlantOverviewBody extends StatelessWidget {
                     return Center(child: Text('Unable to load: ${snapshot.error}'));
                   }
 
+                  final now = DateTime.now();
+                  final dayShiftEnded = now.isAfter(DateTime(now.year, now.month, now.day, 16, 30));
                   // On-leave personnel aren't physically at either plant
                   // today, so they're excluded from both tiles entirely
-                  // rather than shown with an "On-Leave" badge.
+                  // rather than shown with an "On-Leave" badge. Admin's
+                  // view additionally drops day-duty personnel once
+                  // 4:30 PM has passed (see hideOffDutyDayStaff above).
                   final people = (snapshot.data?.docs ?? [])
                       .where((d) => d.id != waterPlantSettingsDocId)
                       .map((d) => WaterPlantPersonnel.fromMap(d.id, d.data()))
                       .where((p) => p.dutyStatus != 'on_leave')
+                      .where((p) => !(hideOffDutyDayStaff && dayShiftEnded && p.dutyStatus == 'day'))
                       .toList();
 
                   final gp = people.where((p) => effectivePlant(p.plant, switchingEnabled: switchingEnabled, exchangeHour: exchangeHour, exchangeMinute: exchangeMinute) == 'gp').toList();

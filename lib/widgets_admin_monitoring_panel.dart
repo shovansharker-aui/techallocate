@@ -12,6 +12,8 @@ import 'models/helper.dart';
 import 'utils/app_colors.dart';
 import 'utils/duty_status.dart';
 
+typedef DutyRosterEntry = ({AppUser user, DutyPresence presence});
+
 class AdminMonitoringPanel extends StatelessWidget {
   const AdminMonitoringPanel({super.key});
 
@@ -29,10 +31,18 @@ class AdminMonitoringPanel extends StatelessWidget {
                 final techs = techSnapshot.data?.docs ?? [];
                 final helpers = helperSnapshot.data?.docs ?? [];
                 final orders = orderSnapshot.data?.docs ?? [];
-                final availableTechList = techs
+                // "Available Now" is really "on duty now" — everyone
+                // whose shift window covers this moment, whether or not
+                // they're currently on a task (see dutyPresence). The
+                // widget/Android-home-screen count below still only
+                // counts the genuinely free half.
+                final rosterTechs = techs
                     .map((d) => AppUser.fromMap(d.id, d.data()))
-                    .where(isEffectivelyAvailable)
-                    .toList();
+                    .map((u) => (user: u, presence: dutyPresence(u)))
+                    .where((r) => r.presence != DutyPresence.off)
+                    .toList()
+                  ..sort((a, b) => a.user.name.toLowerCase().compareTo(b.user.name.toLowerCase()));
+                final availableTechList = rosterTechs.where((r) => r.presence == DutyPresence.free).map((r) => r.user).toList();
                 final availableHelperList = helpers
                     .map((d) => Helper.fromMap(d.id, d.data()))
                     .where((h) => h.status != 'assigned')
@@ -70,7 +80,7 @@ class AdminMonitoringPanel extends StatelessWidget {
                           child: Column(children: [
                             const Expanded(child: DailySummaryCard()),
                             const SizedBox(height: 12),
-                            Expanded(child: _availableNowCard(availableTechList)),
+                            Expanded(child: _availableNowCard(rosterTechs)),
                           ]),
                         ),
                         const SizedBox(width: 12),
@@ -169,7 +179,7 @@ class AdminMonitoringPanel extends StatelessWidget {
     return InkWell(borderRadius: BorderRadius.circular(20), onTap: onTap, child: card);
   }
 
-  Widget _availableNowCard(List<AppUser> jos) {
+  Widget _availableNowCard(List<DutyRosterEntry> roster) {
     return Card(
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -185,12 +195,13 @@ class AdminMonitoringPanel extends StatelessWidget {
             ]),
             const SizedBox(height: 10),
             Expanded(
-              child: jos.isEmpty
-                  ? const Text('No one available right now.', style: TextStyle(fontSize: 12, color: AppColors.muted))
+              child: roster.isEmpty
+                  ? const Text('No one on duty right now.', style: TextStyle(fontSize: 12, color: AppColors.muted))
                   : SingleChildScrollView(
                       child: Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: _namesWithDots(jos),
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: roster.map((r) => _personBox(r)).toList(),
                       ),
                     ),
             ),
@@ -200,18 +211,22 @@ class AdminMonitoringPanel extends StatelessWidget {
     );
   }
 
-  List<Widget> _namesWithDots(List<AppUser> jos) {
-    final widgets = <Widget>[];
-    for (var i = 0; i < jos.length; i++) {
-      widgets.add(Text(jos[i].name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)));
-      if (i != jos.length - 1) {
-        widgets.add(Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: Container(width: 4, height: 4, decoration: const BoxDecoration(color: AppColors.muted, shape: BoxShape.circle)),
-        ));
-      }
-    }
-    return widgets;
+  // A small colored box per on-duty person — green while they're free,
+  // gray while they're on a running task — instead of a single flat
+  // dot-separated name list, so who's actually free to grab a task is
+  // visible at a glance rather than needing the count above it.
+  Widget _personBox(DutyRosterEntry entry) {
+    final busy = entry.presence == DutyPresence.busy;
+    final color = busy ? AppColors.muted : AppColors.success;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(entry.user.name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: busy ? AppColors.mutedDark : color)),
+    );
   }
 }
 

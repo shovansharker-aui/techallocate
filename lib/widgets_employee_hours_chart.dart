@@ -5,12 +5,18 @@ import 'models/work_order.dart';
 import 'utils/app_colors.dart';
 import 'utils/engaged_time.dart';
 
-/// Each JO's total engaged time today, ranked highest first — a
-/// horizontal bar per person instead of a chart with the usual axes,
-/// since a roster of dozens of names reads far better as a sorted list
-/// than crammed onto one category axis. Desktop-only (see GraphsBody):
-/// a full-roster leaderboard like this needs more width than the mobile
-/// Analysis page has to spare.
+/// Each JO's total engaged time over [rangeStart, rangeEndExclusive),
+/// ranked highest first — a horizontal bar per person instead of a
+/// chart with the usual axes, since a roster of dozens of names reads
+/// far better as a sorted list than crammed onto one category axis.
+/// Desktop-only (see GraphsBody): a full-roster leaderboard like this
+/// needs more width than the mobile Analysis page has to spare.
+///
+/// Used for both the Daily and Monthly Analysis views — [rangeStart]/
+/// [rangeEndExclusive] cover either one day or one whole month, and
+/// [includeRunning] should only be true when the range covers this
+/// exact moment (today, or the current month), since a still-running
+/// task has no completedAt to attribute to a past range at all.
 ///
 /// "Engaged" here is overlap-aware (see unionDuration): a JO running two
 /// tasks at once for an hour shows one hour here, not two — even though
@@ -18,12 +24,23 @@ import 'utils/engaged_time.dart';
 /// single task's duration is displayed (Live Activity Grid, Completed
 /// Tasks, etc.), which is unaffected and correct as-is.
 class EmployeeHoursCard extends StatelessWidget {
-  const EmployeeHoursCard({super.key});
+  final DateTime rangeStart;
+  final DateTime rangeEndExclusive;
+  final bool includeRunning;
+  final String title;
+  final String subtitle;
+
+  const EmployeeHoursCard({
+    super.key,
+    required this.rangeStart,
+    required this.rangeEndExclusive,
+    required this.includeRunning,
+    required this.title,
+    required this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
@@ -34,13 +51,10 @@ class EmployeeHoursCard extends StatelessWidget {
             Row(children: [
               const Icon(Icons.bar_chart_outlined, size: 20),
               const SizedBox(width: 8),
-              const Expanded(child: Text('Hours Worked · Today', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+              Expanded(child: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
             ]),
             const SizedBox(height: 4),
-            const Text(
-              "Each JO's total engaged time today — overlapping tasks are counted once, not added together.",
-              style: TextStyle(fontSize: 12, color: AppColors.muted),
-            ),
+            Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
             const SizedBox(height: 14),
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'technician').snapshots(),
@@ -49,7 +63,8 @@ class EmployeeHoursCard extends StatelessWidget {
                   stream: FirebaseFirestore.instance
                       .collection('work_orders')
                       .where('status', isEqualTo: 'completed')
-                      .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
+                      .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(rangeStart))
+                      .where('completedAt', isLessThan: Timestamp.fromDate(rangeEndExclusive))
                       .snapshots(),
                   builder: (context, completedSnapshot) {
                     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -61,9 +76,10 @@ class EmployeeHoursCard extends StatelessWidget {
                         if (!techSnapshot.hasData) {
                           return const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Center(child: CircularProgressIndicator()));
                         }
+                        final now = DateTime.now();
                         final techs = (techSnapshot.data?.docs ?? []).map((d) => AppUser.fromMap(d.id, d.data())).toList();
                         final completedOrders = (completedSnapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data()));
-                        final runningOrders = (runningSnapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data()));
+                        final runningOrders = includeRunning ? (runningSnapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data())) : const <WorkOrder>[];
 
                         final intervals = <String, List<EngagedInterval>>{};
                         void addOrder(WorkOrder o, DateTime end) {

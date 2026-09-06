@@ -202,29 +202,43 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
   }
 
   void _showTaskDetail(BuildContext context, WorkOrder order, Machine? machine, Map<String, Machine> machines, List<String> technicianNames, List<String> helperNames) {
+    // Main unit + other units, merged into one sorted list under a single
+    // "Equipment ID" row — same treatment as the completed-task detail
+    // sheet, and for the same reason: the nickname in the title already
+    // identifies the machine/group, so a separate "Group: <name>" row
+    // would just repeat it.
+    final equipmentIds = {
+      if (machine != null && machine.equipmentId.isNotEmpty) machine.equipmentId,
+      ...order.groupMachineIds.map((id) => machines[id]?.equipmentId ?? id),
+    }.toList()
+      ..sort();
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(machine?.fullLabel ?? (order.machineId.isEmpty ? 'No machine' : order.machineId)),
+        title: Row(children: [
+          CircleAvatar(child: Text(_typeCode(order))),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              machine?.fullLabel ?? (order.machineId.isEmpty ? 'No machine' : order.machineId),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(_duration(order.startedAt), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+        ]),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (machine?.isGrouped == true) _detailRow('Group', machine!.group),
-              if (order.groupMachineIds.isNotEmpty)
-                _detailRow('Other units', order.groupMachineIds.map((id) => machines[id]?.equipmentId ?? id).join(', ')),
-              if (machine != null && machine.equipmentId.isNotEmpty)
-                _detailRow('Equipment ID', machine.equipmentId),
-              _detailRow('Type', '${_typeCode(order)} · ${taskTypeName(order.type)}'),
+              _detailRow('Started', formatTime12h(order.startedAt ?? DateTime.now())),
+              const SizedBox(height: 2),
+              PeopleLine(technicianNames, helperNames),
+              const SizedBox(height: 10),
+              if (equipmentIds.isNotEmpty) _detailRow('Equipment ID', equipmentIds.join(', ')),
               if (order.preventiveTypes.isNotEmpty)
                 _detailRow('Preventive type', order.preventiveTypes.join(', ')),
-              _detailRow('Started', formatTime12h(order.startedAt ?? DateTime.now())),
-              _detailRow('Running for', _duration(order.startedAt)),
-              if (technicianNames.isNotEmpty)
-                _detailRow('Junior Officer(s)', technicianNames.join(', ')),
-              if (helperNames.isNotEmpty)
-                _detailRow('CF(s)', helperNames.join(', ')),
               if (order.description.trim().isNotEmpty) ...[
                 const SizedBox(height: 8),
                 const Text('Starting remarks', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.muted)),
