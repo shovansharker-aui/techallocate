@@ -236,28 +236,43 @@ class WaterPlantOverviewBody extends StatelessWidget {
                       CircleAvatar(radius: 14, child: Text(p.name.isEmpty ? '?' : p.name[0].toUpperCase())),
                       const SizedBox(width: 10),
                       Expanded(child: Text(p.name, overflow: TextOverflow.ellipsis)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: p.dutyStatus == 'on_leave'
-                              ? AppColors.danger.withValues(alpha: 0.12)
-                              : AppColors.success.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          dutyStatusLabel(p.dutyStatus),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: p.dutyStatus == 'on_leave' ? AppColors.danger : AppColors.success,
-                          ),
-                        ),
-                      ),
+                      _dutyBadge(p.dutyStatus),
                     ]),
                   )),
           ],
         ),
       ),
+    );
+  }
+
+  // Night gets a bluish tint with a night icon, Day keeps its original
+  // green with a sun icon added, On-Leave (never actually reached here
+  // — this tile's list already excludes on-leave personnel — kept as a
+  // sane fallback rather than assuming dutyStatus is always one of the
+  // other two) stays red with no icon, same as before.
+  Widget _dutyBadge(String dutyStatus) {
+    final IconData? icon;
+    final Color color;
+    switch (dutyStatus) {
+      case 'night':
+        icon = Icons.nightlight_round;
+        color = AppColors.primary;
+        break;
+      case 'on_leave':
+        icon = null;
+        color = AppColors.danger;
+        break;
+      default:
+        icon = Icons.wb_sunny_outlined;
+        color = AppColors.success;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (icon != null) ...[Icon(icon, size: 12, color: color), const SizedBox(width: 4)],
+        Text(dutyStatusLabel(dutyStatus), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+      ]),
     );
   }
 }
