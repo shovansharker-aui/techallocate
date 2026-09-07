@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
 import '../utils/date_format.dart';
+import '../widgets_breakdown_trend_chart.dart';
 import '../widgets_employee_hours_chart.dart';
 import '../widgets_monthly_overview.dart';
 import '../widgets_work_density_chart.dart';
 
-enum _AnalysisView { daily, monthly }
+enum _AnalysisView { daily, monthly, breakdownTrend }
 
 /// The list of "extra" graphs beyond the main dashboard's Today's
 /// Summary chart. Used two ways:
 ///  - directly, as desktop's dedicated "Graphs" sidebar section
 ///    (showEmployeeHours: true — see AdminWebDashboardScreen), which
-///    additionally gets a Daily/Monthly toggle plus day/month
-///    navigation (showEmployeeHours doubles as "is this the desktop
-///    Analysis menu" since only that surface has room for either)
+///    additionally gets a Daily/Monthly/Breakdowns toggle plus day or
+///    month navigation to match (showEmployeeHours doubles as "is this
+///    the desktop Analysis menu" since only that surface has room for
+///    any of it) — Daily shows a single day, Monthly a whole-month
+///    overview, Breakdowns a per-machine breakdown-count trend chart
+///    for a whole month (both of the latter two share the same month
+///    selection)
 ///  - embedded below the full-width Today's Summary chart on the mobile
 ///    detail page (TaskChartsDetailScreen), since mobile has no spare
 ///    bottom-nav slot for a whole separate section, and no spare width
@@ -74,7 +79,7 @@ class _GraphsBodyState extends State<GraphsBody> {
               title: 'Hours Worked · ${_isToday ? 'Today' : formatDate(_selectedDate)}',
               subtitle: "Each JO's total engaged time that day — overlapping tasks are counted once, not added together.",
             )
-          else ...[
+          else if (_view == _AnalysisView.monthly) ...[
             MonthlyOverviewCalendar(month: _selectedMonth, onSelectDay: _jumpToDate),
             const SizedBox(height: 16),
             EmployeeHoursCard(
@@ -84,7 +89,8 @@ class _GraphsBodyState extends State<GraphsBody> {
               title: 'Hours Worked · ${formatMonthYear(_selectedMonth)}',
               subtitle: "Each JO's total engaged time this month — overlapping tasks are counted once, not added together.",
             ),
-          ],
+          ] else
+            BreakdownTrendChart(month: _selectedMonth),
         ],
         // Add future graphs here, each as its own card.
       ],
@@ -96,6 +102,7 @@ class _GraphsBodyState extends State<GraphsBody> {
       segments: const [
         ButtonSegment(value: _AnalysisView.daily, label: Text('Daily'), icon: Icon(Icons.today_outlined)),
         ButtonSegment(value: _AnalysisView.monthly, label: Text('Monthly'), icon: Icon(Icons.calendar_view_month_outlined)),
+        ButtonSegment(value: _AnalysisView.breakdownTrend, label: Text('Breakdowns'), icon: Icon(Icons.leaderboard_outlined)),
       ],
       selected: {_view},
       onSelectionChanged: (s) => setState(() => _view = s.first),

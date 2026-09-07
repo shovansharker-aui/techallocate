@@ -3,13 +3,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'models/work_order.dart';
 import 'utils/app_colors.dart';
+import 'utils/engaged_time.dart';
 
-/// Total engaged hours across every task completed today, PLUS however
-/// long any still-running task has been going so far — each task
-/// counted once, regardless of how many people were on it. A running
-/// task's time updates automatically as the Firestore doc it's built
-/// from keeps streaming, same as everywhere else "still in progress"
-/// time is shown in this app.
+/// The real wall-clock time today during which at least one task was
+/// active — every completed-or-running task's own interval combined
+/// into one timeline and merged where they overlap (see unionDuration),
+/// rather than each task's duration simply added up. Two tasks running
+/// at once (whether the same JO on both, or two different JOs) for an
+/// hour count as one hour here, not two — this is "how much of the day
+/// had work happening", not total person-hours of labor. A running
+/// task's contribution updates automatically as the Firestore doc it's
+/// built from keeps streaming, same as everywhere else "still in
+/// progress" time is shown in this app.
 class DailySummaryCard extends StatefulWidget {
   const DailySummaryCard({super.key});
 
@@ -57,13 +62,18 @@ class _DailySummaryCardState extends State<DailySummaryCard> {
             final completedOrders = (completedSnapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data()));
             final runningOrders = (runningSnapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data()));
 
-            var totalSeconds = completedOrders.fold<int>(0, (sum, o) => sum + (o.durationSeconds ?? 0));
+            final intervals = <EngagedInterval>[];
+            for (final o in completedOrders) {
+              final start = o.startedAt;
+              if (start == null) continue;
+              intervals.add((start: start, end: o.completedAt ?? start));
+            }
             for (final o in runningOrders) {
               final start = o.startedAt;
               if (start == null) continue;
-              final elapsed = now.difference(start).inSeconds;
-              totalSeconds += elapsed < 0 ? 0 : elapsed;
+              intervals.add((start: start, end: now));
             }
+            final totalSeconds = unionDuration(intervals).inSeconds;
             final h = totalSeconds ~/ 3600;
             final m = (totalSeconds % 3600) ~/ 60;
 

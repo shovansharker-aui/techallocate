@@ -217,7 +217,7 @@ class AdminMonitoringPanel extends StatelessWidget {
   // visible at a glance rather than needing the count above it.
   Widget _personBox(DutyRosterEntry entry) {
     final busy = entry.presence == DutyPresence.busy;
-    final color = busy ? AppColors.muted : AppColors.success;
+    final color = busy ? AppColors.danger : AppColors.success;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -225,7 +225,7 @@ class AdminMonitoringPanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
-      child: Text(entry.user.name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: busy ? AppColors.mutedDark : color)),
+      child: Text(entry.user.name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
     );
   }
 }
