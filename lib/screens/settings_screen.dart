@@ -80,17 +80,19 @@ class _SettingsBodyState extends State<SettingsBody> {
               leading: const CircleAvatar(child: Icon(Icons.brightness_6_outlined)),
               title: const Text('Theme'),
               subtitle: Text(switch (themeService.mode) {
-                ThemeMode.light => 'Light',
-                ThemeMode.dark => 'Dark',
-                ThemeMode.system => 'Match device setting',
+                AppThemeMode.light => 'Light',
+                AppThemeMode.dark => 'Dark',
+                AppThemeMode.colorful => 'Colorful',
+                AppThemeMode.system => 'Match device setting',
               }),
-              trailing: DropdownButton<ThemeMode>(
+              trailing: DropdownButton<AppThemeMode>(
                 value: themeService.mode,
                 underline: const SizedBox.shrink(),
                 items: const [
-                  DropdownMenuItem(value: ThemeMode.system, child: Text('System')),
-                  DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
-                  DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
+                  DropdownMenuItem(value: AppThemeMode.system, child: Text('System')),
+                  DropdownMenuItem(value: AppThemeMode.light, child: Text('Light')),
+                  DropdownMenuItem(value: AppThemeMode.dark, child: Text('Dark')),
+                  DropdownMenuItem(value: AppThemeMode.colorful, child: Text('Colorful')),
                 ],
                 onChanged: (value) { if (value != null) themeService.setMode(value); },
               ),
