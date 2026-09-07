@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/communication_service.dart';
 import 'add_personnel_screen.dart';
 import 'machines_screen.dart';
+import 'manage_cfs_screen.dart';
 import '../utils/app_colors.dart';
 import '../services/theme_service.dart';
 import '../widgets_task_type_chart.dart';
@@ -70,6 +71,14 @@ class _SettingsBodyState extends State<SettingsBody> {
             subtitle: const Text('Add, edit or delete machines and equipment information.'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MachinesScreen())),
+          )),
+          const SizedBox(height: 10),
+          Card(child: ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.handyman_outlined)),
+            title: const Text('Manage CFs'),
+            subtitle: const Text("See every CF's live status, and force one back to available if it's stuck."),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManageCfsScreen())),
           )),
           const SizedBox(height: 24),
           const Text('Appearance', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
