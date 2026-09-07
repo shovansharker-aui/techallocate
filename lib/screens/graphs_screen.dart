@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/date_format.dart';
 import '../widgets_breakdown_trend_chart.dart';
 import '../widgets_employee_hours_chart.dart';
-import '../widgets_monthly_overview.dart';
+import '../widgets_monthly_work_hours_chart.dart';
 import '../widgets_work_density_chart.dart';
 
 enum _AnalysisView { daily, monthly, breakdownTrend }
@@ -80,7 +80,7 @@ class _GraphsBodyState extends State<GraphsBody> {
               subtitle: "Each JO's total engaged time that day — overlapping tasks are counted once, not added together.",
             )
           else if (_view == _AnalysisView.monthly) ...[
-            MonthlyOverviewCalendar(month: _selectedMonth, onSelectDay: _jumpToDate),
+            MonthlyWorkHoursChart(month: _selectedMonth, onSelectDay: _jumpToDate),
             const SizedBox(height: 16),
             EmployeeHoursCard(
               rangeStart: _selectedMonth,
