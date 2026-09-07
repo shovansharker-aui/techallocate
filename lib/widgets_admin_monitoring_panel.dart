@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'widgets_live_activity_grid.dart';
 import 'widgets_completed_tasks_section.dart';
 import 'widgets_daily_summary.dart';
+import 'widgets_engaged_jo_detail.dart';
 import 'widgets_task_type_chart.dart';
 import 'services/android_widget_service.dart';
 import 'screens/task_charts_detail_screen.dart';
@@ -80,7 +81,7 @@ class AdminMonitoringPanel extends StatelessWidget {
                           child: Column(children: [
                             const Expanded(child: DailySummaryCard()),
                             const SizedBox(height: 12),
-                            Expanded(child: _availableNowCard(rosterTechs)),
+                            Expanded(child: _availableNowCard(context, rosterTechs)),
                           ]),
                         ),
                         const SizedBox(width: 12),
@@ -179,7 +180,7 @@ class AdminMonitoringPanel extends StatelessWidget {
     return InkWell(borderRadius: BorderRadius.circular(20), onTap: onTap, child: card);
   }
 
-  Widget _availableNowCard(List<DutyRosterEntry> roster) {
+  Widget _availableNowCard(BuildContext context, List<DutyRosterEntry> roster) {
     return Card(
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -201,7 +202,7 @@ class AdminMonitoringPanel extends StatelessWidget {
                       child: Wrap(
                         spacing: 6,
                         runSpacing: 6,
-                        children: roster.map((r) => _personBox(r)).toList(),
+                        children: roster.map((r) => _personBox(context, r)).toList(),
                       ),
                     ),
             ),
@@ -212,13 +213,16 @@ class AdminMonitoringPanel extends StatelessWidget {
   }
 
   // A small colored box per on-duty person — green while they're free,
-  // gray while they're on a running task — instead of a single flat
+  // red while they're on a running task — instead of a single flat
   // dot-separated name list, so who's actually free to grab a task is
-  // visible at a glance rather than needing the count above it.
-  Widget _personBox(DutyRosterEntry entry) {
+  // visible at a glance rather than needing the count above it. A busy
+  // person's box is tappable — it opens a snapshot of what they're
+  // actually doing right now (see widgets_engaged_jo_detail.dart); a
+  // free person's isn't, since there's nothing running to show.
+  Widget _personBox(BuildContext context, DutyRosterEntry entry) {
     final busy = entry.presence == DutyPresence.busy;
     final color = busy ? AppColors.danger : AppColors.success;
-    return Container(
+    final box = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.14),
@@ -226,6 +230,12 @@ class AdminMonitoringPanel extends StatelessWidget {
         border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(entry.user.name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+    );
+    if (!busy) return box;
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => showEngagedJoDetail(context, entry.user),
+      child: box,
     );
   }
 }
