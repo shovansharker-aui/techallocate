@@ -204,17 +204,180 @@ class TechAllocateApp extends StatelessWidget {
     );
   }
 
+  // The "Colorful" theme (Settings → Theme → Colorful) — one deliberately
+  // vivid, single look rather than a light/dark pair, going for "soft but
+  // gorgeous": a lively violet/pink/teal palette, a solid-color AppBar
+  // instead of the neutral light/dark themes' transparent one, and soft
+  // pastel-tinted surfaces everywhere else so it stays easy to read rather
+  // than loud. Shares every shape/spacing choice with _buildTheme so
+  // switching themes never changes the app's layout, only its color mood.
+  static ThemeData _buildColorfulTheme() {
+    const seed = Color(0xFF7C4DFF); // vivid violet
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: seed,
+      brightness: Brightness.light,
+      secondary: const Color(0xFFFF6FA0), // soft vivid pink
+      tertiary: const Color(0xFF00BFA5), // soft vivid teal
+    );
+    const scaffoldBg = Color(0xFFF6F1FF); // soft lavender tint, not stark white
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: scaffoldBg,
+      visualDensity: VisualDensity.adaptivePlatformDensity,
+
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+        },
+      ),
+
+      // A solid vivid AppBar (rather than the light/dark themes'
+      // background-matching, transparent one) is most of what makes this
+      // theme actually read as "colorful" at a glance, on every screen.
+      appBarTheme: const AppBarTheme(
+        backgroundColor: seed,
+        foregroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
+        iconTheme: IconThemeData(color: Colors.white),
+        actionsIconTheme: IconThemeData(color: Colors.white),
+      ),
+
+      cardTheme: CardThemeData(
+        elevation: 2,
+        shadowColor: seed.withValues(alpha: 0.20),
+        surfaceTintColor: Colors.transparent,
+        color: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        margin: EdgeInsets.zero,
+      ),
+
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          side: BorderSide(color: colorScheme.outlineVariant),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: colorScheme.outlineVariant),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: colorScheme.outlineVariant),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: colorScheme.primary, width: 1.6),
+        ),
+      ),
+
+      chipTheme: ChipThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        side: BorderSide.none,
+        backgroundColor: colorScheme.surfaceContainerHighest,
+        selectedColor: colorScheme.primaryContainer,
+        labelStyle: TextStyle(fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      ),
+
+      dialogTheme: const DialogThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(22))),
+        surfaceTintColor: Colors.transparent,
+        backgroundColor: Colors.white,
+      ),
+
+      bottomSheetTheme: const BottomSheetThemeData(
+        surfaceTintColor: Colors.transparent,
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      ),
+
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        backgroundColor: seed,
+        contentTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+      ),
+
+      listTileTheme: ListTileThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      ),
+
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        elevation: 2,
+        backgroundColor: colorScheme.tertiary,
+        foregroundColor: Colors.white,
+      ),
+
+      dividerTheme: DividerThemeData(
+        color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        space: 1,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: themeService,
       builder: (context, _) {
+        // Colorful is one fixed, vivid look — not itself a light/dark
+        // pair — so it's forced on regardless of the device's own
+        // light/dark setting by making theme and darkTheme identical.
+        // Every other choice maps straight onto Flutter's own ThemeMode.
+        final colorful = themeService.mode == AppThemeMode.colorful;
+        final themeMode = switch (themeService.mode) {
+          AppThemeMode.light => ThemeMode.light,
+          AppThemeMode.dark => ThemeMode.dark,
+          AppThemeMode.colorful => ThemeMode.light,
+          AppThemeMode.system => ThemeMode.system,
+        };
         return MaterialApp(
           title: 'TechAllocate',
           debugShowCheckedModeBanner: false,
-          themeMode: themeService.mode,
-          theme: _buildTheme(Brightness.light),
-          darkTheme: _buildTheme(Brightness.dark),
+          themeMode: themeMode,
+          theme: colorful ? _buildColorfulTheme() : _buildTheme(Brightness.light),
+          darkTheme: colorful ? _buildColorfulTheme() : _buildTheme(Brightness.dark),
           // Forces every showTimePicker and TimeOfDay.format() call in
           // the app to use 12-hour AM/PM, regardless of the device's own
           // locale/settings — so times are consistent everywhere instead
