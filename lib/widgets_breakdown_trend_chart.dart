@@ -42,22 +42,34 @@ class BreakdownTrendChart extends StatelessWidget {
               stream: FirebaseFirestore.instance.collection('machines').snapshots(),
               builder: (context, machineSnapshot) {
                 return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  // Deliberately NOT filtering by type: 'breakdown' in
+                  // the query itself — two equality filters (type,
+                  // status) plus a range filter on a third field
+                  // (completedAt) is exactly the combination that needs
+                  // a manual Firestore composite index, and none exists
+                  // for this one (same reasoning as the "today's stats"
+                  // query in technician_screen.dart). A single equality
+                  // filter plus one range filter needs no composite
+                  // index, so the type filter is applied client-side
+                  // below instead.
                   stream: FirebaseFirestore.instance
                       .collection('work_orders')
-                      .where('type', isEqualTo: 'breakdown')
                       .where('status', isEqualTo: 'completed')
                       .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(monthStart))
                       .where('completedAt', isLessThan: Timestamp.fromDate(monthEndExclusive))
                       .snapshots(),
                   builder: (context, orderSnapshot) {
                     if (machineSnapshot.hasError || orderSnapshot.hasError) {
-                      return const Text('Unable to load breakdown data.', style: TextStyle(color: AppColors.muted, fontSize: 12));
+                      return Text(
+                        'Unable to load breakdown data: ${orderSnapshot.error ?? machineSnapshot.error}',
+                        style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                      );
                     }
                     if (!machineSnapshot.hasData || !orderSnapshot.hasData) {
                       return const Padding(padding: EdgeInsets.symmetric(vertical: 30), child: Center(child: CircularProgressIndicator()));
                     }
                     final Map<String, Machine> machines = {for (final d in machineSnapshot.data!.docs) d.id: Machine.fromMap(d.id, d.data())};
-                    final orders = orderSnapshot.data!.docs.map((d) => WorkOrder.fromMap(d.id, d.data()));
+                    final orders = orderSnapshot.data!.docs.map((d) => WorkOrder.fromMap(d.id, d.data())).where((o) => o.type == 'breakdown');
 
                     final countByMachine = <String, int>{};
                     final secondsByMachine = <String, int>{};
