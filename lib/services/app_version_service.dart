@@ -15,7 +15,7 @@ import 'reload_trigger.dart';
 /// other already-open tab/PWA converges onto the new version within one
 /// polling interval (a few minutes) — nothing updates until at least
 /// one session has actually loaded the new build and announced it.
-const String kAppBuildVersion = '2026-09-08.1';
+const String kAppBuildVersion = '2026-09-08.2';
 
 /// Reuses the same already-writable Firestore document as the Water
 /// Plant "Switching" toggle (see water_plant.dart) rather than a new
