@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'offline_commit.dart';
 
 /// Marks a work order completed at a chosen time, and frees every
-/// technician and helper who was on it back to available. Shared by:
-///  - the technician's own "Complete Task" button
-///  - admin closing any running task from the dashboard
-///  - a Junior Officer closing a CF-only task they assigned (the CF has
-///    no login of their own, so someone else has to be able to close it)
+/// technician and helper who was on it back to available. Used by admin
+/// closing any running task directly from the dashboard (Live Activity
+/// Grid) — a JO's own "Complete Task" button has its own copy of this
+/// logic in technician_screen.dart, since it also needs to know whether
+/// this was their last running task before deciding to free themself.
 ///
 /// Fires the write and returns immediately — see offline_commit.dart for
 /// why callers never wait on this before updating their own UI.

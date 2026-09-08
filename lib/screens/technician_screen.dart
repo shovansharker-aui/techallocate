@@ -15,7 +15,6 @@ import '../utils/task_type.dart';
 import '../utils/task_completion.dart';
 import '../services/status_reminder_notification.dart';
 import '../utils/offline_commit.dart';
-import 'my_cf_assignments_screen.dart';
 import 'late_entry_screen.dart';
 import '../utils/app_colors.dart';
 
@@ -329,16 +328,6 @@ class _TechnicianHome extends StatelessWidget {
         const SizedBox(height: 12),
         Card(
           child: ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.person_add_alt_1)),
-            title: const Text('CF Assignments', style: TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(onLeave ? 'Assigning is unavailable while on-leave — you can still close out existing ones.' : 'Assign a CF, or close out ones you already assigned.'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CfAssignmentsScreen(uid: uid, canAssign: !onLeave))),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: ListTile(
             leading: const CircleAvatar(child: Icon(Icons.history_edu_outlined)),
             title: const Text('Add Past Task', style: TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(onLeave ? 'Unavailable while on-leave.' : 'Log a task you couldn\'t enter at the time.'),
@@ -397,9 +386,6 @@ class _RunningTasksTabs extends StatelessWidget {
               tooltip: 'More',
               onSelected: (value) {
                 switch (value) {
-                  case 'cf':
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => CfAssignmentsScreen(uid: uid)));
-                    break;
                   case 'late_entry':
                     Navigator.of(context).push(MaterialPageRoute(builder: (_) => LateEntryScreen(uid: uid)));
                     break;
@@ -412,7 +398,6 @@ class _RunningTasksTabs extends StatelessWidget {
                 }
               },
               itemBuilder: (context) => const [
-                PopupMenuItem(value: 'cf', child: Text('CF Assignments')),
                 PopupMenuItem(value: 'late_entry', child: Text('Add Past Task')),
                 PopupMenuItem(value: 'status', child: Text('Set Status')),
                 PopupMenuDivider(),
