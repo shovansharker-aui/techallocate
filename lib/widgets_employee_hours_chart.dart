@@ -81,19 +81,20 @@ class EmployeeHoursCard extends StatelessWidget {
                         final completedOrders = (completedSnapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data()));
                         final runningOrders = includeRunning ? (runningSnapshot.data?.docs ?? []).map((d) => WorkOrder.fromMap(d.id, d.data())) : const <WorkOrder>[];
 
+                        // Each order contributes every person's OWN
+                        // interval on it (see WorkOrder.contributorInterval)
+                        // — assignedTechnicianIds ∪ contributorIds covers
+                        // both whoever's still on the task and whoever
+                        // left it early (no longer in
+                        // assignedTechnicianIds, but their own interval
+                        // is already fixed once they left, whether the
+                        // task itself has finished yet or not).
                         final intervals = <String, List<EngagedInterval>>{};
-                        void addOrder(WorkOrder o, DateTime end) {
-                          final start = o.startedAt;
-                          if (start == null) return;
-                          for (final id in o.assignedTechnicianIds) {
-                            (intervals[id] ??= []).add((start: start, end: end));
+                        for (final o in [...completedOrders, ...runningOrders]) {
+                          for (final id in {...o.assignedTechnicianIds, ...o.contributorIds}) {
+                            final interval = o.contributorInterval(id, nowIfRunning: now);
+                            if (interval != null) (intervals[id] ??= []).add(interval);
                           }
-                        }
-                        for (final o in completedOrders) {
-                          addOrder(o, o.completedAt ?? (o.startedAt ?? now));
-                        }
-                        for (final o in runningOrders) {
-                          addOrder(o, now);
                         }
 
                         final rows = techs

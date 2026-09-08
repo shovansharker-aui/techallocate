@@ -53,65 +53,84 @@ class _EngagedJoDetailDialog extends StatelessWidget {
                   .snapshots(),
               builder: (context, completedSnapshot) {
                 return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  // A second query on contributorIds catches a task this
+                  // JO left early on a multi-JO task — see the identical
+                  // reasoning on _TodayStatsCard in technician_screen.dart.
                   stream: FirebaseFirestore.instance
                       .collection('work_orders')
-                      .where('assignedTechnicianIds', arrayContains: user.uid)
-                      .where('status', isEqualTo: 'in_progress')
+                      .where('contributorIds', arrayContains: user.uid)
+                      .where('status', isEqualTo: 'completed')
                       .snapshots(),
-                  builder: (context, runningSnapshot) {
-                    if (machineSnapshot.hasError || completedSnapshot.hasError || runningSnapshot.hasError) {
-                      return const Text('Unable to load details.', style: TextStyle(color: AppColors.muted));
-                    }
-                    if (!machineSnapshot.hasData || !completedSnapshot.hasData || !runningSnapshot.hasData) {
-                      return const Padding(padding: EdgeInsets.symmetric(vertical: 30), child: Center(child: CircularProgressIndicator()));
-                    }
-                    final Map<String, Machine> machines = {for (final d in machineSnapshot.data!.docs) d.id: Machine.fromMap(d.id, d.data())};
-                    final completedToday = completedSnapshot.data!.docs
-                        .map((d) => WorkOrder.fromMap(d.id, d.data()))
-                        .where((o) => o.completedAt != null && !o.completedAt!.isBefore(todayStart));
-                    final running = runningSnapshot.data!.docs.map((d) => WorkOrder.fromMap(d.id, d.data())).toList()
-                      ..sort((a, b) => (a.startedAt ?? now).compareTo(b.startedAt ?? now));
+                  builder: (context, contributorSnapshot) {
+                    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: FirebaseFirestore.instance
+                          .collection('work_orders')
+                          .where('assignedTechnicianIds', arrayContains: user.uid)
+                          .where('status', isEqualTo: 'in_progress')
+                          .snapshots(),
+                      builder: (context, runningSnapshot) {
+                        if (machineSnapshot.hasError || completedSnapshot.hasError || contributorSnapshot.hasError || runningSnapshot.hasError) {
+                          return const Text('Unable to load details.', style: TextStyle(color: AppColors.muted));
+                        }
+                        if (!machineSnapshot.hasData || !completedSnapshot.hasData || !contributorSnapshot.hasData || !runningSnapshot.hasData) {
+                          return const Padding(padding: EdgeInsets.symmetric(vertical: 30), child: Center(child: CircularProgressIndicator()));
+                        }
+                        final Map<String, Machine> machines = {for (final d in machineSnapshot.data!.docs) d.id: Machine.fromMap(d.id, d.data())};
+                        final completedById = <String, WorkOrder>{};
+                        for (final d in [...completedSnapshot.data!.docs, ...contributorSnapshot.data!.docs]) {
+                          completedById[d.id] = WorkOrder.fromMap(d.id, d.data());
+                        }
+                        final running = runningSnapshot.data!.docs.map((d) => WorkOrder.fromMap(d.id, d.data())).toList()
+                          ..sort((a, b) => (a.startedAt ?? now).compareTo(b.startedAt ?? now));
 
-                    // Today's combined engaged time — same overlap-aware
-                    // convention as everywhere else a "total hours"
-                    // figure is shown (see unionDuration): running tasks'
-                    // elapsed-so-far is included, since this dialog is
-                    // specifically about someone who's engaged right now.
-                    final intervals = <EngagedInterval>[];
-                    for (final o in completedToday) {
-                      final start = o.startedAt;
-                      if (start == null) continue;
-                      intervals.add((start: start, end: o.completedAt ?? start));
-                    }
-                    for (final o in running) {
-                      final start = o.startedAt;
-                      if (start == null) continue;
-                      intervals.add((start: start, end: now));
-                    }
-                    final todaySeconds = unionDuration(intervals).inSeconds;
-                    final h = todaySeconds ~/ 3600;
-                    final m = (todaySeconds % 3600) ~/ 60;
-                    final todayLabel = h > 0 ? '${h}h ${m}m' : '${m}m';
+                        // Today's combined engaged time — same overlap-
+                        // aware convention as everywhere else a "total
+                        // hours" figure is shown (see unionDuration):
+                        // running tasks' elapsed-so-far is included,
+                        // since this dialog is specifically about
+                        // someone who's engaged right now. Each order
+                        // contributes this JO's OWN interval on it (see
+                        // WorkOrder.contributorInterval), which on a
+                        // multi-JO task can be shorter than the task's
+                        // full span; "today" is judged by when their own
+                        // interval ended, not the task's overall
+                        // completedAt.
+                        final intervals = <EngagedInterval>[];
+                        for (final o in completedById.values) {
+                          final interval = o.contributorInterval(user.uid);
+                          if (interval == null || interval.end.isBefore(todayStart)) continue;
+                          intervals.add(interval);
+                        }
+                        for (final o in running) {
+                          final interval = o.contributorInterval(user.uid, nowIfRunning: now);
+                          if (interval != null) intervals.add(interval);
+                        }
+                        final todaySeconds = unionDuration(intervals).inSeconds;
+                        final h = todaySeconds ~/ 3600;
+                        final m = (todaySeconds % 3600) ~/ 60;
+                        final todayLabel = h > 0 ? '${h}h ${m}m' : '${m}m';
 
-                    return SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _detailRow(context, 'Employee ID', user.employeeId.isEmpty ? '—' : user.employeeId),
-                          _detailRow(context, "Today's work hour", todayLabel),
-                          const SizedBox(height: 12),
-                          Text(
-                            running.length == 1 ? 'Running Task' : 'Running Tasks (${running.length})',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.muted),
+                        return SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _detailRow(context, 'Employee ID', user.employeeId.isEmpty ? '—' : user.employeeId),
+                              _detailRow(context, "Today's work hour", todayLabel),
+                              const SizedBox(height: 12),
+                              Text(
+                                running.length == 1 ? 'Running Task' : 'Running Tasks (${running.length})',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.muted),
+                              ),
+                              const SizedBox(height: 6),
+                              if (running.isEmpty)
+                                const Text('No running tasks.', style: TextStyle(color: AppColors.muted, fontSize: 13))
+                              else
+                                ...running.map((o) => _taskCard(o, machines[o.machineId])),
+                            ],
                           ),
-                          const SizedBox(height: 6),
-                          if (running.isEmpty)
-                            const Text('No running tasks.', style: TextStyle(color: AppColors.muted, fontSize: 13))
-                          else
-                            ...running.map((o) => _taskCard(o, machines[o.machineId])),
-                        ],
-                      ),
+                        );
+                      },
                     );
                   },
                 );

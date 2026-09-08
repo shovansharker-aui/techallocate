@@ -43,7 +43,9 @@ String buildWorkOrdersCsv({
 
   for (final order in orders) {
     final machine = machines[order.machineId];
-    final techNames = order.assignedTechnicianIds.map((id) => technicians[id]?.name).whereType<String>().join(', ');
+    // Union with contributorIds so a JO who left this task early (before
+    // whoever finished it did) is still recorded as having worked on it.
+    final techNames = {...order.assignedTechnicianIds, ...order.contributorIds}.map((id) => technicians[id]?.name).whereType<String>().join(', ');
     final helperNames = order.helperIds.map((id) => helpers[id]?.name).whereType<String>().join(', ');
     // Original equipment name here — never the nickname — even though
     // the app shows the nickname to admin elsewhere. Backups are meant

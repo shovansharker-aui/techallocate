@@ -348,7 +348,10 @@ class _CompletedTaskRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final machine = machines[order.machineId];
-    final techNames = order.assignedTechnicianIds.map((id) => users[id]?.name).whereType<String>().toList();
+    // Union with contributorIds so a JO who left this task early (before
+    // whoever finished it did) still shows up here as having worked on
+    // it — assignedTechnicianIds alone is just the final roster.
+    final techNames = {...order.assignedTechnicianIds, ...order.contributorIds}.map((id) => users[id]?.name).whereType<String>().toList();
     final helperNames = order.helperIds.map((id) => helpers[id]?.name).whereType<String>().toList();
     return Card(
       margin: const EdgeInsets.only(bottom: 8),

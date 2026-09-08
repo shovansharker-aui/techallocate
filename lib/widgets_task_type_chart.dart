@@ -127,21 +127,21 @@ class _TaskTypeBreakdownCardState extends State<TaskTypeBreakdownCard> {
                     // tasks at once for an hour worked one hour, not two,
                     // so each JO's intervals are merged first (see
                     // unionDuration) before turning into a total.
+                    // assignedTechnicianIds ∪ contributorIds so a JO who
+                    // left a multi-JO task early still gets credited with
+                    // it — their own interval (see
+                    // WorkOrder.contributorInterval) is already fixed at
+                    // their own leave time regardless of whether the task
+                    // itself has finished yet.
                     final joIntervals = <String, List<EngagedInterval>>{};
                     final joTaskCount = <String, int>{};
-                    void addOrder(WorkOrder o, DateTime end) {
-                      final start = o.startedAt;
-                      if (start == null) return;
-                      for (final id in o.assignedTechnicianIds) {
-                        (joIntervals[id] ??= []).add((start: start, end: end));
+                    for (final o in [...completedOrders, ...runningOrders]) {
+                      for (final id in {...o.assignedTechnicianIds, ...o.contributorIds}) {
+                        final interval = o.contributorInterval(id, nowIfRunning: now);
+                        if (interval == null) continue;
+                        (joIntervals[id] ??= []).add(interval);
                         joTaskCount[id] = (joTaskCount[id] ?? 0) + 1;
                       }
-                    }
-                    for (final o in completedOrders) {
-                      addOrder(o, o.completedAt ?? (o.startedAt ?? now));
-                    }
-                    for (final o in runningOrders) {
-                      addOrder(o, now);
                     }
                     final joSeconds = <String, int>{for (final e in joIntervals.entries) e.key: unionDuration(e.value).inSeconds};
                     final joIds = joSeconds.keys.toList()..sort((a, b) => (joSeconds[b] ?? 0).compareTo(joSeconds[a] ?? 0));

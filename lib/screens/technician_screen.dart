@@ -260,29 +260,83 @@ class _TodayStatsCard extends StatelessWidget {
           .where('assignedTechnicianIds', arrayContains: uid)
           .where('status', isEqualTo: 'completed')
           .snapshots(),
-      builder: (context, snapshot) {
-        final orders = (snapshot.data?.docs ?? [])
-            .map((d) => WorkOrder.fromMap(d.id, d.data()))
-            .where((o) => o.completedAt != null && !o.completedAt!.isBefore(todayStart))
-            .toList();
-        final count = orders.length;
-        // Merge overlapping tasks' time rather than summing durationSeconds
-        // directly — running two tasks at once for an hour is one hour
-        // engaged, not two. See unionDuration.
-        final totalSeconds = unionDuration(orders.where((o) => o.startedAt != null).map((o) => (start: o.startedAt!, end: o.completedAt ?? o.startedAt!))).inSeconds;
-        final hours = totalSeconds ~/ 3600;
-        final minutes = (totalSeconds % 3600) ~/ 60;
-        final engagedLabel = hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
-        return Card(
-          color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.35),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-            child: Row(children: [
-              Expanded(child: _stat(context, Icons.task_alt, '$count', count == 1 ? 'task today' : 'tasks today')),
-              SizedBox(height: 42, child: VerticalDivider(width: 1, color: Theme.of(context).dividerColor)),
-              Expanded(child: _stat(context, Icons.timer_outlined, engagedLabel, 'engaged today')),
-            ]),
-          ),
+      builder: (context, currentSnapshot) {
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          // A second query on contributorIds catches a task this JO left
+          // early on a multi-JO task — by the time it completes they're
+          // no longer in assignedTechnicianIds, but their own stats
+          // should still credit the time they were actually on it. Kept
+          // as a separate query merged with the one above (rather than
+          // just switching to contributorIds) so records written before
+          // that field existed, which only ever had
+          // assignedTechnicianIds, still match.
+          stream: FirebaseFirestore.instance
+              .collection('work_orders')
+              .where('contributorIds', arrayContains: uid)
+              .where('status', isEqualTo: 'completed')
+              .snapshots(),
+          builder: (context, contributorSnapshot) {
+            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              // A JO who left a multi-JO task early shows up here too,
+              // even while that task is still running for whoever's
+              // left on it — their own contribution already concluded
+              // the moment they left, so it shouldn't have to wait on
+              // someone else to eventually finish the task before it
+              // counts toward today. Someone still actively on a
+              // running task is filtered out below (contributorInterval
+              // only returns a fixed interval for someone who's
+              // actually left; a leave time on this task must be
+              // present, or it's excluded).
+              stream: FirebaseFirestore.instance
+                  .collection('work_orders')
+                  .where('contributorIds', arrayContains: uid)
+                  .where('status', isEqualTo: 'in_progress')
+                  .snapshots(),
+              builder: (context, stillRunningSnapshot) {
+                final byId = <String, WorkOrder>{};
+                for (final d in [...(currentSnapshot.data?.docs ?? []), ...(contributorSnapshot.data?.docs ?? [])]) {
+                  byId[d.id] = WorkOrder.fromMap(d.id, d.data());
+                }
+                final leftEarly = (stillRunningSnapshot.data?.docs ?? [])
+                    .map((d) => WorkOrder.fromMap(d.id, d.data()))
+                    .where((o) => o.contributorLeaveTimes.containsKey(uid));
+
+                // Each order contributes THIS JO's own interval on it
+                // (see WorkOrder.contributorInterval) — for a multi-JO
+                // task that can be shorter than the task's overall span,
+                // if they joined late or left early. "Today" is judged
+                // by when their own interval ended, not the task's
+                // overall completedAt, so a task that ran long after
+                // this JO left still counts toward the day they
+                // actually left it.
+                final intervals = <EngagedInterval>[];
+                for (final o in [...byId.values, ...leftEarly]) {
+                  final interval = o.contributorInterval(uid);
+                  if (interval == null || interval.end.isBefore(todayStart)) continue;
+                  intervals.add(interval);
+                }
+                final count = intervals.length;
+                // Merge overlapping tasks' time rather than summing each
+                // one's duration directly — running two tasks at once for
+                // an hour is one hour engaged, not two. See unionDuration.
+                final totalSeconds = unionDuration(intervals).inSeconds;
+                final hours = totalSeconds ~/ 3600;
+                final minutes = (totalSeconds % 3600) ~/ 60;
+                final engagedLabel = hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
+                return Card(
+                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.35),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+                    child: Row(children: [
+                      Expanded(child: _stat(context, Icons.task_alt, '$count', count == 1 ? 'task today' : 'tasks today')),
+                      SizedBox(height: 42, child: VerticalDivider(width: 1, color: Theme.of(context).dividerColor)),
+                      Expanded(child: _stat(context, Icons.timer_outlined, engagedLabel, 'engaged today')),
+                    ]),
+                  ),
+                );
+              },
+            );
+          },
         );
       },
     );
@@ -532,6 +586,12 @@ class _StartTaskPageState extends State<_StartTaskPage> {
       'description': _remarksController.text.trim(),
       'status': 'in_progress',
       'assignedTechnicianIds': [widget.uid],
+      // Tracks everyone who's ever worked on this task (grows only) and
+      // when each of them joined, separately from assignedTechnicianIds
+      // (the current roster, which shrinks if someone leaves a multi-JO
+      // task early) — see WorkOrder.contributorInterval.
+      'contributorIds': [widget.uid],
+      'contributorJoinTimes': {widget.uid: startedNow},
       // CFs are no longer picked when starting a task — a JO adds them
       // afterwards, from that task's own tab via "Add CF".
       'helperIds': <String>[],
@@ -755,10 +815,16 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
   Future<void> _addAnotherJo(WorkOrder order) async {
     final snap = await FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'technician').orderBy('name').get();
     final all = snap.docs.map((d) => AppUser.fromMap(d.id, d.data())).toList();
-    // Anyone not already on this task — a JO can be on several tasks at
-    // once already, so there's no "must be available" restriction the
-    // way there is for CFs (who can only ever be on one task).
-    final candidates = all.where((u) => u.uid != widget.uid && !order.assignedTechnicianIds.contains(u.uid)).toList();
+    // Anyone not already on this task and currently on duty — a JO CAN
+    // be on several tasks at once already (no "must be free" rule the
+    // way there is for CFs, who can only ever be on one task), but they
+    // still have to actually be on shift right now: not on-leave, and
+    // not e.g. a day-duty JO added after their shift window ended for
+    // the day (see dutyPresence — same rule the "Available Now" roster
+    // uses).
+    final candidates = all
+        .where((u) => u.uid != widget.uid && !order.assignedTechnicianIds.contains(u.uid) && dutyPresence(u) != DutyPresence.off)
+        .toList();
 
     if (candidates.isEmpty) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No other Junior Officer to add.')));
@@ -790,6 +856,8 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
     final batch = firestore.batch();
     batch.update(firestore.collection('work_orders').doc(widget.taskId), {
       'assignedTechnicianIds': FieldValue.arrayUnion([picked.uid]),
+      'contributorIds': FieldValue.arrayUnion([picked.uid]),
+      'contributorJoinTimes.${picked.uid}': Timestamp.fromDate(DateTime.now()),
     });
     batch.update(firestore.collection('users').doc(picked.uid), {'status': 'assigned'});
     commitAllowingOffline(batch);
@@ -877,7 +945,13 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
     final firestore = FirebaseFirestore.instance;
     final batch = firestore.batch();
     batch.update(firestore.collection('work_orders').doc(widget.taskId), {
+      // Comes off the current roster (this task keeps running for
+      // whoever's left), but stays in contributorIds and gets a leave
+      // time recorded — so this JO's own history/stats still credit
+      // them with exactly the time they were actually on it, once the
+      // task itself eventually completes. See WorkOrder.contributorInterval.
       'assignedTechnicianIds': FieldValue.arrayRemove([widget.uid]),
+      'contributorLeaveTimes.${widget.uid}': Timestamp.fromDate(DateTime.now()),
     });
     final stillBusy = widget.totalRunningCount > 1;
     batch.update(firestore.collection('users').doc(widget.uid), {'status': stillBusy ? 'assigned' : 'available'});

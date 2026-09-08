@@ -52,7 +52,9 @@ class CompletedTasksSection extends StatelessWidget {
                   shrinkWrap: true,
                   children: orders.map((o) {
                     final machine = machines[o.machineId];
-                    final names = o.assignedTechnicianIds.map((id) => techs[id]?.name).whereType<String>().toList();
+                    // Union with contributorIds so a JO who left this
+                    // task early still shows up as having worked on it.
+                    final names = {...o.assignedTechnicianIds, ...o.contributorIds}.map((id) => techs[id]?.name).whereType<String>().toList();
                     final helperNames = o.helperIds.map((id) => helpers[id]?.name).whereType<String>().toList();
                     return ListTile(
                       dense: true,
