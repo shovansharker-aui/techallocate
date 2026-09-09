@@ -10,6 +10,17 @@ import 'offline_commit.dart';
 /// logic in technician_screen.dart, since it also needs to know whether
 /// this was their last running task before deciding to free themself.
 ///
+/// [stillBusyTechnicianIds] is who among [technicianIds] is ALSO on a
+/// different still-running task right now — e.g. a JO who's a second/
+/// third contributor on another task, or (rarer) primary on one of their
+/// own elsewhere. Callers must pass this in (Live Activity Grid already
+/// has every running order loaded, so it costs nothing extra there) —
+/// without it, completing just one of a busy JO's tasks would wrongly
+/// flip them straight to "available" and drop them off the "Available
+/// Now" roster's busy state while they're still actively on the other
+/// task. Same "stillBusy" reasoning as technician_screen.dart's own
+/// completion/leave flows.
+///
 /// Fires the write and returns immediately — see offline_commit.dart for
 /// why callers never wait on this before updating their own UI.
 void completeWorkOrder({
@@ -18,6 +29,7 @@ void completeWorkOrder({
   required List<String> helperIds,
   required DateTime completedAt,
   bool lateEntry = false,
+  Set<String> stillBusyTechnicianIds = const {},
 }) {
   final firestore = FirebaseFirestore.instance;
   final batch = firestore.batch();
@@ -32,9 +44,10 @@ void completeWorkOrder({
   if (lateEntry) update['lateEntry'] = true;
   batch.update(firestore.collection('work_orders').doc(orderId), update);
   for (final id in technicianIds) {
+    final stillBusy = stillBusyTechnicianIds.contains(id);
     batch.update(firestore.collection('users').doc(id), {
-      'status': 'available',
-      'currentTaskId': null,
+      'status': stillBusy ? 'assigned' : 'available',
+      if (!stillBusy) 'currentTaskId': null,
     });
   }
   for (final id in helperIds) {

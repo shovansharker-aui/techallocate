@@ -159,12 +159,20 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                           onPressed: () async {
                                             final picked = await pickCompletionTime(context, startedAt: order.startedAt);
                                             if (picked == null) return;
+                                            // Anyone on this task who's also listed on a
+                                            // DIFFERENT still-running order stays "assigned"
+                                            // instead of being flipped to "available" — they're
+                                            // still actively busy over there.
+                                            final stillBusyIds = order.assignedTechnicianIds
+                                                .where((id) => orders.any((o) => o.id != order.id && o.assignedTechnicianIds.contains(id)))
+                                                .toSet();
                                             completeWorkOrder(
                                               orderId: order.id,
                                               technicianIds: order.assignedTechnicianIds,
                                               helperIds: order.helperIds,
                                               completedAt: picked.time,
                                               lateEntry: picked.isBacktime,
+                                              stillBusyTechnicianIds: stillBusyIds,
                                             );
                                           },
                                           icon: const Icon(Icons.check_circle_outline, size: 15),
