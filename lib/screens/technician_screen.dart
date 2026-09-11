@@ -719,10 +719,24 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
 
   String _typeCode(WorkOrder order) => taskTypeCode(order.type);
 
+  Future<bool> _confirmReassign(Helper helper) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('CF already assigned'),
+        content: Text('${helper.name} is already in a task. Reassign to this task?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Reassign')),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
   Future<void> _chooseAndAddHelpers(WorkOrder order) async {
     final snap = await FirebaseFirestore.instance.collection('helpers').orderBy('name').get();
     final helpers = snap.docs.map((d) => Helper.fromMap(d.id, d.data())).toList();
-    final available = helpers.where((h) => h.status == 'available' || order.helperIds.contains(h.uid)).toList();
     final selected = Set<String>.from(order.helperIds);
     await showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (sheetContext) => StatefulBuilder(builder: (context, setSheetState) => SafeArea(child: Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
@@ -733,12 +747,20 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
           constraints: const BoxConstraints(maxHeight: 420),
           child: ListView(
             shrinkWrap: true,
-            children: available.map((h) {
+            children: helpers.map((h) {
+              final busyElsewhere = h.status != 'available' && !order.helperIds.contains(h.uid);
               return CheckboxListTile(
                 value: selected.contains(h.uid),
                 title: Text(h.name),
+                subtitle: busyElsewhere ? const Text('Already in another task') : null,
                 secondary: const Icon(Icons.handyman_outlined),
-                onChanged: (v) {
+                onChanged: (v) async {
+                  // Selecting a CF that's already attached to someone
+                  // else's task requires an explicit confirmation before
+                  // it's added — proceeding will release it from that task.
+                  if (v == true && busyElsewhere && !await _confirmReassign(h)) {
+                    return;
+                  }
                   setSheetState(() {
                     if (v == true) {
                       selected.add(h.uid);
@@ -781,20 +803,30 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
     final firestore = FirebaseFirestore.instance;
     try {
       // Adding a CF deliberately still requires a live connection: it
-      // reads the CF's current status and writes only if still
-      // "available", inside a transaction, specifically to stop two
-      // people from double-booking the same CF at the same moment.
-      // Firestore transactions need a round-trip to the server to do
-      // that safely, so this one step can't be queued offline the way
+      // reads the CF's current status inside a transaction, specifically
+      // to stop two people from double-booking the same CF at the same
+      // moment. Firestore transactions need a round-trip to the server to
+      // do that safely, so this one step can't be queued offline the way
       // the rest of this screen's writes are — it will simply show an
       // error below if there's no signal, same as before this change.
+      //
+      // If the CF is already attached to a different task, the picker UI
+      // above has already confirmed the reassignment with the user, so
+      // this releases it from that task and attaches it here atomically.
       for (final id in added) {
         await firestore.runTransaction((tx) async {
           final ref = firestore.collection('helpers').doc(id);
           final snap = await tx.get(ref);
           if (!snap.exists) throw Exception('CF not found.');
           final data = snap.data()!;
-          if ((data['status'] ?? 'available') != 'available') throw Exception('${data['name'] ?? 'CF'} is no longer available.');
+          final oldTaskId = data['currentTaskId']?.toString();
+          DocumentSnapshot<Map<String, dynamic>>? oldTaskSnap;
+          if ((data['status'] ?? 'available') == 'assigned' && oldTaskId != null && oldTaskId != widget.taskId) {
+            oldTaskSnap = await tx.get(firestore.collection('work_orders').doc(oldTaskId));
+          }
+          if (oldTaskSnap != null && oldTaskSnap.exists) {
+            tx.update(oldTaskSnap.reference, {'helperIds': FieldValue.arrayRemove([id])});
+          }
           tx.update(ref, {'status': 'assigned', 'currentTaskId': widget.taskId});
           tx.update(firestore.collection('work_orders').doc(widget.taskId), {'helperIds': FieldValue.arrayUnion([id])});
         });
