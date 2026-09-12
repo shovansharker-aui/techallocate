@@ -29,8 +29,19 @@ class _BackfillAiTitlesScreenState extends State<BackfillAiTitlesScreen> {
   int _failed = 0;
   final List<String> _log = [];
 
+  // Guards a setState call without aborting whatever async work is still
+  // in flight -- unlike an early `if (!mounted) return`, which (used
+  // inside _run's loop) would silently kill the REST of the backfill the
+  // moment this screen stops being shown, e.g. the user navigates away
+  // mid-run since each task takes a couple of seconds. The Firestore
+  // writes below never check this -- they're meant to keep happening in
+  // the background even after the screen is gone.
+  void _safeSetState(VoidCallback fn) {
+    if (mounted) setState(fn);
+  }
+
   Future<void> _run() async {
-    setState(() {
+    _safeSetState(() {
       _isRunning = true;
       _hasRun = true;
       _total = 0;
@@ -47,8 +58,7 @@ class _BackfillAiTitlesScreenState extends State<BackfillAiTitlesScreen> {
           .map((d) => WorkOrder.fromMap(d.id, d.data()))
           .where((o) => o.summaryTitle == null || o.summaryTitle!.isEmpty)
           .toList();
-      if (!mounted) return;
-      setState(() => _total = orders.length);
+      _safeSetState(() => _total = orders.length);
 
       for (final order in orders) {
         // Live-started tasks keep their remarks in 'description'; a
@@ -56,8 +66,7 @@ class _BackfillAiTitlesScreenState extends State<BackfillAiTitlesScreen> {
         // late_entry_screen.dart) -- try whichever one is actually set.
         final remarks = order.description.trim().isNotEmpty ? order.description : order.completionRemarks;
         if (remarks.trim().isEmpty) {
-          if (!mounted) return;
-          setState(() {
+          _safeSetState(() {
             _processed++;
             _skipped++;
             _log.add('Skipped ${order.id} — no remarks to summarize.');
@@ -67,24 +76,21 @@ class _BackfillAiTitlesScreenState extends State<BackfillAiTitlesScreen> {
         try {
           final title = await summarizeOthersTaskTitle(remarks);
           if (title == null) {
-            if (!mounted) return;
-            setState(() {
+            _safeSetState(() {
               _processed++;
               _failed++;
               _log.add('Failed ${order.id} — AI request did not return a title.');
             });
           } else {
             await FirebaseFirestore.instance.collection('work_orders').doc(order.id).update({'summaryTitle': title});
-            if (!mounted) return;
-            setState(() {
+            _safeSetState(() {
               _processed++;
               _titled++;
               _log.add('Titled ${order.id} — "$title"');
             });
           }
         } catch (e) {
-          if (!mounted) return;
-          setState(() {
+          _safeSetState(() {
             _processed++;
             _failed++;
             _log.add('Failed ${order.id} — $e');
@@ -99,7 +105,7 @@ class _BackfillAiTitlesScreenState extends State<BackfillAiTitlesScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not load tasks: $e')));
       }
     } finally {
-      if (mounted) setState(() => _isRunning = false);
+      _safeSetState(() => _isRunning = false);
     }
   }
 
@@ -120,9 +126,10 @@ class _BackfillAiTitlesScreenState extends State<BackfillAiTitlesScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Calls the free-tier Gemini API once per task with a short pause between calls, '
-              'so a large backlog can take a while. Safe to re-run — it only touches tasks still '
-              'missing a title.',
+              'Calls the free-tier Gemini API once per task with a short pause between calls, so '
+              'a large backlog can take a while — it keeps running even if you navigate elsewhere '
+              'in the app, but stops if you close this tab/app entirely before it finishes. Safe '
+              'to re-run — it only touches tasks still missing a title.',
               style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
             const SizedBox(height: 18),
