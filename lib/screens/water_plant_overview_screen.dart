@@ -183,27 +183,51 @@ class WaterPlantOverviewBody extends StatelessWidget {
                   final gp = people.where((p) => effectivePlant(p.plant, switchingEnabled: switchingEnabled, exchangeHour: exchangeHour, exchangeMinute: exchangeMinute) == 'gp').toList();
                   final softgel = people.where((p) => effectivePlant(p.plant, switchingEnabled: switchingEnabled, exchangeHour: exchangeHour, exchangeMinute: exchangeMinute) == 'softgel').toList();
 
+                  // Most recent status update across everyone shown on this
+                  // page, shown once up top rather than repeated under each
+                  // person's own name.
+                  DateTime? lastUpdate;
+                  for (final p in people) {
+                    if (p.statusSetAt != null && (lastUpdate == null || p.statusSetAt!.isAfter(lastUpdate))) {
+                      lastUpdate = p.statusSetAt;
+                    }
+                  }
+
                   return Padding(
                     padding: const EdgeInsets.all(16),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final twoColumn = constraints.maxWidth >= 500;
-                        final tiles = [
-                          _plantTile('GP Water Plant', Icons.water_drop_outlined, AppColors.categoryProduction, gp),
-                          _plantTile('Softgel Water Plant', Icons.water_drop_outlined, AppColors.categoryEngineering, softgel),
-                        ];
-                        if (!twoColumn) {
-                          return ListView(children: [tiles[0], const SizedBox(height: 12), tiles[1]]);
-                        }
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: tiles[0]),
-                            const SizedBox(width: 12),
-                            Expanded(child: tiles[1]),
-                          ],
-                        );
-                      },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Text(
+                            lastUpdate == null ? 'Last update: —' : 'Last update: ${formatDateTime12h(lastUpdate)}',
+                            style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                          ),
+                        ),
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final twoColumn = constraints.maxWidth >= 500;
+                              final tiles = [
+                                _plantTile('GP Water Plant', Icons.water_drop_outlined, AppColors.categoryProduction, gp),
+                                _plantTile('Softgel Water Plant', Icons.water_drop_outlined, AppColors.categoryEngineering, softgel),
+                              ];
+                              if (!twoColumn) {
+                                return ListView(children: [tiles[0], const SizedBox(height: 12), tiles[1]]);
+                              }
+                              return Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(child: tiles[0]),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: tiles[1]),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 },
@@ -236,21 +260,7 @@ class WaterPlantOverviewBody extends StatelessWidget {
                     child: Row(children: [
                       CircleAvatar(radius: 14, child: Text(p.name.isEmpty ? '?' : p.name[0].toUpperCase())),
                       const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(p.name, overflow: TextOverflow.ellipsis),
-                            Text(
-                              p.statusSetAt == null
-                                  ? 'Last update: —'
-                                  : 'Last update: ${formatDateTime12h(p.statusSetAt)}',
-                              style: const TextStyle(fontSize: 11, color: AppColors.muted),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
+                      Expanded(child: Text(p.name, overflow: TextOverflow.ellipsis)),
                       _dutyBadge(p.dutyStatus),
                     ]),
                   )),
