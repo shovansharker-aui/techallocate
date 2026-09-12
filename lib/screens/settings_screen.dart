@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../services/communication_service.dart';
 import 'add_personnel_screen.dart';
+import 'backfill_ai_titles_screen.dart';
 import 'machines_screen.dart';
 import 'manage_cfs_screen.dart';
 import '../utils/app_colors.dart';
@@ -79,6 +80,14 @@ class _SettingsBodyState extends State<SettingsBody> {
             subtitle: const Text("See every CF's live status, and force one back to available if it's stuck."),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManageCfsScreen())),
+          )),
+          const SizedBox(height: 10),
+          Card(child: ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.auto_awesome_outlined)),
+            title: const Text('Backfill AI Titles'),
+            subtitle: const Text('One-time: generate AI titles for existing "Others" tasks that don\'t have one yet.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BackfillAiTitlesScreen())),
           )),
           const SizedBox(height: 24),
           const Text('Appearance', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'add_personnel_screen.dart';
+import 'backfill_ai_titles_screen.dart';
 import 'machines_screen.dart';
 import 'manage_cfs_screen.dart';
 import '../services/theme_service.dart';
@@ -101,6 +102,24 @@ class AdminSettingsBody extends StatelessWidget {
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _open(context, const ManageCfsScreen()),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.auto_awesome_outlined),
+                  ),
+                  title: const Text(
+                    'Backfill AI Titles',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: const Text(
+                    'One-time: generate AI titles for existing "Others" tasks that don\'t have one yet.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _open(context, const BackfillAiTitlesScreen()),
                 ),
               ),
               const SizedBox(height: 24),
