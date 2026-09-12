@@ -358,7 +358,7 @@ class _CompletedTaskRow extends StatelessWidget {
       child: ListTile(
         leading: CircleAvatar(child: Text(taskTypeCode(order.type))),
         title: Row(children: [
-          Expanded(child: Text(machine?.displayName ?? (order.machineId.isEmpty ? 'No machine' : order.machineId), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          Expanded(child: Text(order.displayTitle(machineLabel: machine?.displayName), maxLines: 1, overflow: TextOverflow.ellipsis)),
           if (order.lateEntry) ...[const SizedBox(width: 6), lateEntryBadge()],
         ]),
         subtitle: Text([
@@ -523,7 +523,7 @@ class _CompletedTaskDetailSheetState extends State<_CompletedTaskDetailSheet> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    machine?.fullLabel ?? (order.machineId.isEmpty ? 'No machine' : order.machineId),
+                    order.displayTitle(machineLabel: machine?.fullLabel),
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),

@@ -2471,3 +2471,6 @@ DerivedData/
 /.dart_tool/package_config.json
 /.dart_tool/package_graph.json
 /.dart_tool/version
+
+# Local AI API key (see lib/config/ai_config.example.dart)
+lib/config/ai_config.dart

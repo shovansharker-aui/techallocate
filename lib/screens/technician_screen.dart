@@ -13,6 +13,7 @@ import '../utils/engaged_time.dart';
 import '../utils/machine_group.dart';
 import '../utils/task_type.dart';
 import '../utils/task_completion.dart';
+import '../services/ai_title_service.dart';
 import '../services/status_reminder_notification.dart';
 import '../utils/offline_commit.dart';
 import 'late_entry_screen.dart';
@@ -606,6 +607,17 @@ class _StartTaskPageState extends State<_StartTaskPage> {
       // Fire the write and move on immediately — see offline_commit.dart
       // for why we never wait on this, not even briefly.
       commitAllowingOffline(batch);
+      if (_type == 'others') {
+        // Best-effort AI title, patched in whenever it resolves -- never
+        // blocks starting the task, and simply doesn't happen if it
+        // fails or no API key is configured (see ai_title_service.dart).
+        unawaited(summarizeOthersTaskTitle(_remarksController.text).then((title) {
+          if (title == null) return;
+          ref.update({'summaryTitle': title}).catchError((Object error) {
+            debugPrint('Could not save AI title: $error');
+          });
+        }));
+      }
       if (!mounted) return;
       Navigator.pop(context);
     } catch (e) {

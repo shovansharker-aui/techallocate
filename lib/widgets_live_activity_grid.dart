@@ -122,7 +122,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                             // which units are involved.
                                             (order.groupMachineIds.isNotEmpty && machine?.isGrouped == true)
                                                 ? machine!.group
-                                                : (machine?.displayName ?? (order.machineId.isEmpty ? 'No machine' : order.machineId)),
+                                                : order.displayTitle(machineLabel: machine?.displayName),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
@@ -228,7 +228,7 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              machine?.fullLabel ?? (order.machineId.isEmpty ? 'No machine' : order.machineId),
+              order.displayTitle(machineLabel: machine?.fullLabel),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),

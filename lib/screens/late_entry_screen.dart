@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/machine.dart';
+import '../services/ai_title_service.dart';
 import '../utils/app_colors.dart';
 import '../utils/date_format.dart';
 import '../utils/machine_group.dart';
@@ -150,6 +153,16 @@ class _LateEntryScreenState extends State<LateEntryScreen> {
     });
 
     commitAllowingOffline(batch);
+    if (_type == 'others') {
+      // Best-effort AI title, patched in whenever it resolves -- see the
+      // equivalent call in technician_screen.dart's _startTask.
+      unawaited(summarizeOthersTaskTitle(_remarksController.text).then((title) {
+        if (title == null) return;
+        ref.update({'summaryTitle': title}).catchError((Object error) {
+          debugPrint('Could not save AI title: $error');
+        });
+      }));
+    }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Past task saved.')),

@@ -3,6 +3,11 @@ class WorkOrder {
   final String type; // preventive | breakdown | calibration | adjustment
   final String machineId;
   final String description;
+  // AI-generated short title for an 'others' task, derived from its
+  // remarks -- see services/ai_title_service.dart. Null/empty for every
+  // other task type, or an 'others' task the summarizer hasn't (or
+  // couldn't) produce one for yet.
+  final String? summaryTitle;
   final String status;
   final List<String> assignedTechnicianIds;
   final List<String> helperIds;
@@ -46,6 +51,7 @@ class WorkOrder {
     required this.type,
     required this.machineId,
     required this.description,
+    this.summaryTitle,
     required this.status,
     required this.assignedTechnicianIds,
     required this.helperIds,
@@ -81,12 +87,18 @@ class WorkOrder {
     return result;
   }
 
+  static String? _trimmedOrNull(dynamic value) {
+    final s = value?.toString().trim();
+    return (s == null || s.isEmpty) ? null : s;
+  }
+
   factory WorkOrder.fromMap(String id, Map<String, dynamic> data) {
     return WorkOrder(
       id: id,
       type: (data['type'] ?? 'breakdown').toString(),
       machineId: (data['machineId'] ?? '').toString(),
       description: (data['description'] ?? '').toString(),
+      summaryTitle: _trimmedOrNull(data['summaryTitle']),
       status: (data['status'] ?? 'open').toString(),
       assignedTechnicianIds: List<String>.from(data['assignedTechnicianIds'] ?? const []),
       helperIds: List<String>.from(data['helperIds'] ?? const []),
@@ -117,5 +129,17 @@ class WorkOrder {
     final end = contributorLeaveTimes[uid] ?? completedAt ?? nowIfRunning;
     if (end == null) return null;
     return (start: start, end: end);
+  }
+
+  /// What to show as this task's "title" wherever a task list currently
+  /// falls back to the machine's name -- an 'others' task with an
+  /// AI-generated summaryTitle uses that instead of [machineLabel]'s own
+  /// "No machine" fallback, since "No machine" says nothing about what
+  /// the task actually was.
+  String displayTitle({String? machineLabel}) {
+    if (type == 'others' && summaryTitle != null && summaryTitle!.isNotEmpty) {
+      return summaryTitle!;
+    }
+    return machineLabel ?? (machineId.isEmpty ? 'No machine' : machineId);
   }
 }

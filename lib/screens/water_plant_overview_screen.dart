@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/water_plant_personnel.dart';
 import '../utils/app_colors.dart';
+import '../utils/date_format.dart';
 import '../utils/water_plant.dart';
 import 'water_plant_manager_dashboard.dart';
 
@@ -235,7 +236,21 @@ class WaterPlantOverviewBody extends StatelessWidget {
                     child: Row(children: [
                       CircleAvatar(radius: 14, child: Text(p.name.isEmpty ? '?' : p.name[0].toUpperCase())),
                       const SizedBox(width: 10),
-                      Expanded(child: Text(p.name, overflow: TextOverflow.ellipsis)),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(p.name, overflow: TextOverflow.ellipsis),
+                            Text(
+                              p.statusSetAt == null
+                                  ? 'Last update: —'
+                                  : 'Last update: ${formatDateTime12h(p.statusSetAt)}',
+                              style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
                       _dutyBadge(p.dutyStatus),
                     ]),
                   )),
