@@ -22,6 +22,16 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # lib/config/ai_config.dart is git-ignored (holds the Gemini API
+      # key locally) and so doesn't exist on a fresh checkout -- generate
+      # it here from a repo secret so the build doesn't fail on the
+      # missing import. If GEMINI_API_KEY isn't set as a repo secret,
+      # this just writes an empty key and AI titles for "Others" tasks
+      # silently stay off in the built APK, same as an unconfigured local
+      # build -- see lib/config/ai_config.example.dart.
+      - name: Write AI config
+        run: echo "const geminiApiKey = '${{ secrets.GEMINI_API_KEY }}';" > lib/config/ai_config.dart
+
       # --split-per-abi produces one smaller APK per CPU architecture
       # instead of one large "fat" APK containing all of them. Most
       # phones are arm64-v8a — that's the one to hand out by default.

@@ -22,6 +22,12 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # See the equivalent step in build-android.yml -- ai_config.dart is
+      # git-ignored, so it has to be generated here from a repo secret or
+      # this build fails on the missing import.
+      - name: Write AI config
+        run: echo "const geminiApiKey = '${{ secrets.GEMINI_API_KEY }}';" > lib/config/ai_config.dart
+
       - name: Build web app
         run: flutter build web
 
