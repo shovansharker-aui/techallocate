@@ -1002,6 +1002,120 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
     commitAllowingOffline(batch);
   }
 
+  // "Others" tasks alone can have zero, one, or several machines picked
+  // AFTER the task's already running -- unlike every other task type,
+  // which is tied to whatever single machine (plus its group, if any)
+  // was chosen at Start Task and never changes. Reuses the existing
+  // machineId (first pick) + groupMachineIds (the rest) fields purely as
+  // "the set of machines on this task" here -- there's no formal
+  // machine-group relationship between them the way there is for a
+  // grouped machine's own subunits, but every place that already reads
+  // those two fields to render "Machine: X" / "Other units: ..." keeps
+  // working unchanged.
+  Future<void> _editOthersMachines(WorkOrder order) async {
+    final snap = await FirebaseFirestore.instance.collection('machines').orderBy('equipmentName').get();
+    final machines = snap.docs.map((d) => Machine.fromMap(d.id, d.data())).toList();
+    final selected = <String>{
+      if (order.machineId.isNotEmpty) order.machineId,
+      ...order.groupMachineIds,
+    };
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('Select Machine(s)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 420),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: machines.map((m) {
+                    return CheckboxListTile(
+                      value: selected.contains(m.id),
+                      title: Text(m.displayName),
+                      subtitle: m.equipmentId.isNotEmpty ? Text(m.equipmentId) : null,
+                      onChanged: (v) {
+                        setSheetState(() {
+                          if (v == true) {
+                            selected.add(m.id);
+                          } else {
+                            selected.remove(m.id);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () async {
+                    final ids = selected.toList();
+                    Navigator.pop(sheetContext);
+                    try {
+                      await FirebaseFirestore.instance.collection('work_orders').doc(widget.taskId).update({
+                        'machineId': ids.isEmpty ? '' : ids.first,
+                        'groupMachineIds': ids.length > 1 ? ids.sublist(1) : <String>[],
+                      });
+                    } catch (e) {
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update machines: $e')));
+                    }
+                  },
+                  child: Text('Save (${selected.length} selected)'),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editOthersRemarks(WorkOrder order) async {
+    final controller = TextEditingController(text: order.description);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Edit remarks'),
+        content: TextField(
+          controller: controller,
+          maxLines: 4,
+          autofocus: true,
+          decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Describe the task'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Save')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null || result == order.description) return;
+    try {
+      await FirebaseFirestore.instance.collection('work_orders').doc(widget.taskId).update({'description': result});
+      // The AI title was generated from the OLD remarks -- refresh it so
+      // it doesn't go stale relative to what the task is now described
+      // as. Same best-effort, fire-and-forget pattern as Start Task.
+      if (result.isNotEmpty) {
+        unawaited(summarizeOthersTaskTitle(result).then((title) {
+          if (title == null) return;
+          FirebaseFirestore.instance.collection('work_orders').doc(widget.taskId).update({'summaryTitle': title}).catchError((Object error) {
+            debugPrint('Could not save AI title: $error');
+          });
+        }));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update remarks: $e')));
+    }
+  }
+
   Future<void> _completeTask(WorkOrder order, String remarks, {required DateTime completedAt, required bool lateEntry}) async {
     setState(() => _isCompleting = true);
     final firestore = FirebaseFirestore.instance;
@@ -1078,67 +1192,121 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
                 if (order.type == 'preventive' && order.preventiveTypes.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Preventive type: ${order.preventiveTypes.join(', ')}')),
                 if (order.startedAt != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Started: ${formatDateTime12h(order.startedAt)}')),
                 if (order.description.isNotEmpty) ...[const SizedBox(height: 8), Text('Starting remarks: ${order.description}')],
-                const SizedBox(height: 18),
-                Row(children: [
-                  const Expanded(child: Text('Junior Officer(s)', style: TextStyle(fontWeight: FontWeight.w600))),
-                  OutlinedButton.icon(onPressed: () => _addAnotherJo(order), icon: const Icon(Icons.person_add_alt_1), label: const Text('Add JO')),
-                ]),
-                const SizedBox(height: 4),
-                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: order.assignedTechnicianIds.isEmpty ? null : FirebaseFirestore.instance.collection('users').where(FieldPath.documentId, whereIn: order.assignedTechnicianIds).snapshots(),
-                  builder: (context, joSnapshot) {
-                    final docs = joSnapshot.data?.docs ?? [];
-                    if (docs.isEmpty) return const Text('—');
-                    return Column(
-                      children: docs.map((d) {
-                        final isMe = d.id == widget.uid;
-                        return ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.engineering_outlined),
-                          title: Text('${(d.data()['name'] ?? '').toString()}${isMe ? ' (You)' : ''}'),
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
-                const SizedBox(height: 18),
-                Row(children: [
-                  const Expanded(child: Text('CFs', style: TextStyle(fontWeight: FontWeight.w600))),
-                  if (order.helperIds.isNotEmpty)
-                    TextButton.icon(
-                      onPressed: () => _confirmReleaseAllHelpers(order),
-                      icon: const Icon(Icons.person_remove_alt_1, size: 18),
-                      label: const Text('Release all'),
-                      style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                // Only "Others" tasks can have their machine(s)/remarks
+                // changed after starting -- every other type is tied to
+                // whatever was picked at Start Task.
+                if (order.type == 'others') ...[
+                  const SizedBox(height: 10),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _editOthersMachines(order),
+                      icon: const Icon(Icons.precision_manufacturing_outlined, size: 16),
+                      label: const Text('Edit Machine(s)'),
                     ),
-                  OutlinedButton.icon(onPressed: () => _chooseAndAddHelpers(order), icon: const Icon(Icons.person_add_alt_1), label: const Text('Add CF')),
-                ]),
-                const SizedBox(height: 4),
-                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: order.helperIds.isEmpty ? null : FirebaseFirestore.instance.collection('helpers').where(FieldPath.documentId, whereIn: order.helperIds).snapshots(),
-                  builder: (context, helperSnapshot) {
-                    final docs = helperSnapshot.data?.docs ?? [];
-                    if (docs.isEmpty) return const Text('No CF selected.');
-                    return Column(
-                      children: docs.map((d) {
-                        return ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.handyman_outlined),
-                          title: Text((d.data()['name'] ?? '').toString()),
-                          trailing: TextButton(
-                            onPressed: () => _syncHelpers(
-                              order.helperIds.toSet(),
-                              order.helperIds.toSet()..remove(d.id),
+                    OutlinedButton.icon(
+                      onPressed: () => _editOthersRemarks(order),
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text('Edit Remarks'),
+                    ),
+                  ]),
+                ],
+                const SizedBox(height: 18),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          const Icon(Icons.engineering_outlined, size: 18),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _addAnotherJo(order),
+                              icon: const Icon(Icons.person_add_alt_1, size: 16),
+                              label: const Text('Add JO'),
                             ),
-                            child: const Text('Release'),
                           ),
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
+                        ]),
+                        const SizedBox(height: 6),
+                        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                          stream: order.assignedTechnicianIds.isEmpty ? null : FirebaseFirestore.instance.collection('users').where(FieldPath.documentId, whereIn: order.assignedTechnicianIds).snapshots(),
+                          builder: (context, joSnapshot) {
+                            final docs = joSnapshot.data?.docs ?? [];
+                            if (docs.isEmpty) return const Text('—');
+                            return Column(
+                              children: docs.map((d) {
+                                final isMe = d.id == widget.uid;
+                                return ListTile(
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text('${(d.data()['name'] ?? '').toString()}${isMe ? ' (You)' : ''}', style: const TextStyle(fontSize: 13)),
+                                );
+                              }).toList(),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          const Icon(Icons.handyman_outlined, size: 18),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _chooseAndAddHelpers(order),
+                              icon: const Icon(Icons.person_add_alt_1, size: 16),
+                              label: const Text('Add CF'),
+                            ),
+                          ),
+                        ]),
+                        if (order.helperIds.isNotEmpty)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: () => _confirmReleaseAllHelpers(order),
+                              icon: const Icon(Icons.person_remove_alt_1, size: 14),
+                              label: const Text('Release all', style: TextStyle(fontSize: 12)),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.danger,
+                                padding: EdgeInsets.zero,
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 6),
+                        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                          stream: order.helperIds.isEmpty ? null : FirebaseFirestore.instance.collection('helpers').where(FieldPath.documentId, whereIn: order.helperIds).snapshots(),
+                          builder: (context, helperSnapshot) {
+                            final docs = helperSnapshot.data?.docs ?? [];
+                            if (docs.isEmpty) return const Text('No CF selected.');
+                            return Column(
+                              children: docs.map((d) {
+                                return ListTile(
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text((d.data()['name'] ?? '').toString(), style: const TextStyle(fontSize: 13)),
+                                  trailing: TextButton(
+                                    onPressed: () => _syncHelpers(
+                                      order.helperIds.toSet(),
+                                      order.helperIds.toSet()..remove(d.id),
+                                    ),
+                                    child: const Text('Release'),
+                                  ),
+                                );
+                              }).toList(),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ]),
                 const SizedBox(height: 18),
                 if (order.type != 'preventive') Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: .08), borderRadius: BorderRadius.circular(10)), child: const Text('Completion remarks are required for Breakdown, Calibration and Adjustment tasks.')),
               ])),

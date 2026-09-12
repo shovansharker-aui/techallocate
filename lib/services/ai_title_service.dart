@@ -16,6 +16,32 @@ import '../config/ai_config.dart';
 /// that way (404 "no longer available") before this ever shipped.
 const _endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent';
 
+/// What the title should look like -- named subject + a short category
+/// word, never the plant/room/area, plain Title Case with no punctuation.
+/// A single instruction string alone let the model free-style word order
+/// and pick up noise words (e.g. "Glass cleaning work view" for "view
+/// glass cleaning work") -- these examples pin the exact style down far
+/// more reliably than prose instructions on their own. Taken directly
+/// from real JO remarks and the titles wanted for them.
+const _systemInstruction = 'You generate a short title for a maintenance task from a technician\'s '
+    'informal, often typo-ridden field notes. Rules:\n'
+    '- 2-4 words, Title Case, no ending punctuation, no quotes.\n'
+    '- Name ONLY the equipment/system plus a short category word (Repair, Task, '
+    'Required, Work, Inspection) -- never the plant, building, area, or room it '
+    'happened in.\n'
+    '- Silently fix obvious typos and ignore filler words like "view", "running", '
+    '"working" used as filler rather than the subject.\n'
+    '- Never explain your answer -- output the title text only, nothing else.';
+
+const _fewShotExamples = <(String remarks, String title)>[
+  ('Softgel FBE control panel tray er pipe leakage hoyse (service area)', 'Air Pipe Repair'),
+  ('view glass cleaning work', 'Glass Cleaning Work'),
+  ('need welding', 'Welding Required'),
+  ('gp annex light work', 'Light Repair'),
+  ('light and inter lock workin', 'Light & Interlock Repair'),
+  ('secondary change room access control working running', 'Access Control Repair'),
+];
+
 /// Turns an "Others" task's free-text remarks into a short title (a few
 /// words, no trailing punctuation) for display in place of "No machine"
 /// on the admin panel and archived tasks.
@@ -34,14 +60,33 @@ Future<String?> summarizeOthersTaskTitle(String remarks) async {
           Uri.parse('$_endpoint?key=$geminiApiKey'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
+            'systemInstruction': {
+              'parts': [
+                {'text': _systemInstruction},
+              ],
+            },
+            // Few-shot: each example is a fake prior exchange so the
+            // model pattern-matches the exact style instead of only
+            // reading it as a rule to interpret on its own.
             'contents': [
+              for (final (exampleRemarks, exampleTitle) in _fewShotExamples) ...[
+                {
+                  'role': 'user',
+                  'parts': [
+                    {'text': exampleRemarks},
+                  ],
+                },
+                {
+                  'role': 'model',
+                  'parts': [
+                    {'text': exampleTitle},
+                  ],
+                },
+              ],
               {
+                'role': 'user',
                 'parts': [
-                  {
-                    'text': 'Summarize this maintenance-task note into a short title of 6 words or '
-                        'fewer. Plain text only: no quotes, no markdown, no trailing period.\n\n'
-                        'Note: $trimmed',
-                  },
+                  {'text': trimmed},
                 ],
               },
             ],

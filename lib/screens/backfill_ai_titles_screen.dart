@@ -22,6 +22,7 @@ class BackfillAiTitlesScreen extends StatefulWidget {
 class _BackfillAiTitlesScreenState extends State<BackfillAiTitlesScreen> {
   bool _isRunning = false;
   bool _hasRun = false;
+  bool _regenerateAll = false;
   int _total = 0;
   int _processed = 0;
   int _titled = 0;
@@ -56,7 +57,7 @@ class _BackfillAiTitlesScreenState extends State<BackfillAiTitlesScreen> {
       final snap = await FirebaseFirestore.instance.collection('work_orders').where('type', isEqualTo: 'others').get();
       final orders = snap.docs
           .map((d) => WorkOrder.fromMap(d.id, d.data()))
-          .where((o) => o.summaryTitle == null || o.summaryTitle!.isEmpty)
+          .where((o) => _regenerateAll || o.summaryTitle == null || o.summaryTitle!.isEmpty)
           .toList();
       _safeSetState(() => _total = orders.length);
 
@@ -83,10 +84,11 @@ class _BackfillAiTitlesScreenState extends State<BackfillAiTitlesScreen> {
             });
           } else {
             await FirebaseFirestore.instance.collection('work_orders').doc(order.id).update({'summaryTitle': title});
+            final hadTitle = order.summaryTitle != null && order.summaryTitle!.isNotEmpty;
             _safeSetState(() {
               _processed++;
               _titled++;
-              _log.add('Titled ${order.id} — "$title"');
+              _log.add('${hadTitle ? 'Replaced' : 'Titled'} ${order.id} — "$title"${hadTitle ? ' (was "${order.summaryTitle}")' : ''}');
             });
           }
         } catch (e) {
@@ -129,10 +131,22 @@ class _BackfillAiTitlesScreenState extends State<BackfillAiTitlesScreen> {
               'Calls the free-tier Gemini API once per task with a short pause between calls, so '
               'a large backlog can take a while — it keeps running even if you navigate elsewhere '
               'in the app, but stops if you close this tab/app entirely before it finishes. Safe '
-              'to re-run — it only touches tasks still missing a title.',
+              'to re-run — with the box below unchecked, it only touches tasks still missing a '
+              'title.',
               style: TextStyle(color: AppColors.muted, fontSize: 12),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: _regenerateAll,
+              onChanged: _isRunning ? null : (v) => setState(() => _regenerateAll = v ?? false),
+              title: const Text('Also regenerate tasks that already have a title'),
+              subtitle: const Text(
+                'Use this after changing how titles are generated, to fix titles made with the old style too.',
+              ),
+            ),
+            const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
