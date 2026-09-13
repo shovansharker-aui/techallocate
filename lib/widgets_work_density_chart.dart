@@ -13,33 +13,19 @@ const _personLineColor = Color(0xFFED7D31);
 /// unique people (JO + CF combined) were concurrently engaged, at each
 /// sampled moment.
 ///
-/// [customRange] switches to a multi-day mode instead: the same two
-/// series, but each point is the AVERAGE across every day in the range
-/// at that time-of-day, so e.g. "9:00 AM" reads as "on average, this
-/// many people were engaged at 9 AM across the selected days" rather
-/// than one specific day's timeline. [date] is ignored whenever
-/// [customRange] is set.
-///
 /// This card is meant to be placed in a page with real room to show it
-/// (the desktop Graphs section, or the mobile "Today's Summary" detail
-/// page) rather than a small dashboard tile, so it always renders at
-/// full size with axis labels — no separate tap-to-expand view needed
-/// anymore.
+/// rather than a small dashboard tile, so it always renders at full size
+/// with axis labels — no separate tap-to-expand view needed anymore.
+/// Currently only embedded on the mobile "Today's Summary" detail page
+/// (TaskChartsDetailScreen), always showing today.
 class WorkDensityCard extends StatelessWidget {
   // null = today, live, window keeps growing to now (the original,
   // still-default behavior). A past date shows that whole day instead.
-  // Only the desktop Analysis view ever passes a non-null date/range
-  // (see GraphsBody's nav) — the mobile embed always shows today.
   final DateTime? date;
-  final DateTimeRange? customRange;
-  const WorkDensityCard({super.key, this.date, this.customRange});
+  const WorkDensityCard({super.key, this.date});
 
   @override
   Widget build(BuildContext context) {
-    if (customRange != null) {
-      return _WorkDensityAggregateCard(range: customRange!);
-    }
-
     final now = DateTime.now();
     final day = date ?? now;
     final isToday = day.year == now.year && day.month == now.month && day.day == now.day;
@@ -189,168 +175,6 @@ class _WorkDensityChart extends StatelessWidget {
           },
         );
       },
-    );
-  }
-}
-
-/// Multi-day version: same two series, but each sampled time-of-day is
-/// averaged across every day in [range] instead of showing one day's
-/// own timeline.
-class _WorkDensityAggregateCard extends StatelessWidget {
-  final DateTimeRange range;
-  const _WorkDensityAggregateCard({required this.range});
-
-  @override
-  Widget build(BuildContext context) {
-    final rangeStartDay = DateTime(range.start.year, range.start.month, range.start.day);
-    final rangeEndExclusive = DateTime(range.end.year, range.end.month, range.end.day).add(const Duration(days: 1));
-    final now = DateTime.now();
-    final includesToday = !now.isBefore(rangeStartDay) && now.isBefore(rangeEndExclusive);
-
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              const Icon(Icons.show_chart, size: 20),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Text(
-                    'Work Density · ${formatDate(rangeStartDay)} – ${formatDate(range.end)}',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 4),
-            const Text(
-              'Average concurrent tasks/people by time of day, across every day in this range.',
-              style: TextStyle(fontSize: 11, color: AppColors.muted),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 220,
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .collection('work_orders')
-                    .where('startedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(rangeStartDay))
-                    .where('startedAt', isLessThan: Timestamp.fromDate(rangeEndExclusive))
-                    .snapshots(),
-                builder: (context, startedSnapshot) {
-                  return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: FirebaseFirestore.instance.collection('work_orders').where('status', isEqualTo: 'in_progress').snapshots(),
-                    builder: (context, runningSnapshot) {
-                      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: FirebaseFirestore.instance
-                            .collection('work_orders')
-                            .where('status', isEqualTo: 'completed')
-                            .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(rangeStartDay))
-                            .where('completedAt', isLessThan: Timestamp.fromDate(rangeEndExclusive))
-                            .snapshots(),
-                        builder: (context, completedSnapshot) {
-                          if (!startedSnapshot.hasData || !runningSnapshot.hasData || !completedSnapshot.hasData) {
-                            return const Center(child: CircularProgressIndicator());
-                          }
-                          final startedOrders = startedSnapshot.data!.docs.map((d) => WorkOrder.fromMap(d.id, d.data())).toList();
-                          if (startedOrders.isEmpty) {
-                            return const Center(child: Text('No tasks were started in this range.', style: TextStyle(color: AppColors.muted, fontSize: 12)));
-                          }
-
-                          // Union by id: a task might qualify via more
-                          // than one of the three queries above.
-                          final pool = <String, WorkOrder>{};
-                          for (final o in startedOrders) {
-                            pool[o.id] = o;
-                          }
-                          for (final d in runningSnapshot.data!.docs) {
-                            final o = WorkOrder.fromMap(d.id, d.data());
-                            pool[o.id] = o;
-                          }
-                          for (final d in completedSnapshot.data!.docs) {
-                            final o = WorkOrder.fromMap(d.id, d.data());
-                            pool[o.id] = o;
-                          }
-                          final orders = pool.values.toList();
-
-                          final days = <DateTime>[];
-                          for (var d = rangeStartDay; d.isBefore(rangeEndExclusive); d = d.add(const Duration(days: 1))) {
-                            days.add(d);
-                          }
-
-                          // Earliest hour-of-day any day's first task
-                          // began, across the whole range.
-                          double? globalStartHour;
-                          for (final o in startedOrders) {
-                            final s = o.startedAt;
-                            if (s == null) continue;
-                            final hour = s.hour + s.minute / 60.0;
-                            if (globalStartHour == null || hour < globalStartHour) globalStartHour = hour;
-                          }
-                          globalStartHour ??= 8.0;
-                          final globalEndHour = includesToday ? (now.hour + now.minute / 60.0) : 24.0;
-                          if (globalEndHour <= globalStartHour) {
-                            return const Center(child: Text("Not enough of today has happened yet to chart.", style: TextStyle(color: AppColors.muted, fontSize: 12)));
-                          }
-
-                          const stepMinutes = 15;
-                          final totalSteps = (((globalEndHour - globalStartHour) * 60) / stepMinutes).ceil().clamp(2, 200);
-
-                          final taskSeries = <double>[];
-                          final personSeries = <double>[];
-                          final times = <DateTime>[];
-                          final labelDay = days.first;
-
-                          for (var i = 0; i <= totalSteps; i++) {
-                            final hour = globalStartHour + (globalEndHour - globalStartHour) * i / totalSteps;
-                            final h = hour.floor();
-                            final min = ((hour - h) * 60).round();
-                            times.add(DateTime(labelDay.year, labelDay.month, labelDay.day, h, min));
-
-                            var taskTotal = 0.0;
-                            var personTotal = 0.0;
-                            for (final day in days) {
-                              final dayIsToday = day.year == now.year && day.month == now.month && day.day == now.day;
-                              final sampleTime = DateTime(day.year, day.month, day.day, h, min);
-                              var taskCount = 0;
-                              final people = <String>{};
-                              for (final o in orders) {
-                                final start = o.startedAt;
-                                if (start == null) continue;
-                                final end = o.completedAt ?? (dayIsToday ? now : DateTime(day.year, day.month, day.day, 23, 59, 59));
-                                if (!sampleTime.isBefore(start) && !sampleTime.isAfter(end)) {
-                                  taskCount++;
-                                  people.addAll(o.assignedTechnicianIds);
-                                  people.addAll(o.helperIds);
-                                }
-                              }
-                              taskTotal += taskCount;
-                              personTotal += people.length;
-                            }
-                            taskSeries.add(taskTotal / days.length);
-                            personSeries.add(personTotal / days.length);
-                          }
-
-                          return CustomPaint(
-                            painter: _LineChartPainter(taskSeries: taskSeries, personSeries: personSeries, times: times),
-                            child: Container(),
-                          );
-                        },
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 10),
-            _legend(),
-          ],
-        ),
-      ),
     );
   }
 }
