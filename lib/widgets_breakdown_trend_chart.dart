@@ -9,20 +9,58 @@ import 'utils/date_format.dart';
 
 typedef _MachineBreakdowns = ({String name, int count, int seconds, List<WorkOrder> tasks});
 
-/// Breakdown Trend — for the selected month, how many breakdown (BM)
-/// tasks each machine had, ranked worst-first, as a columnar bar chart:
-/// x-axis is machine name, y-axis (bar height) is breakdown count. The
-/// total downtime for that machine, in "10h35m" format, is shown as a
-/// label on the bar itself — count and duration tell two different
-/// parts of the same story and both matter to admin at a glance.
-class BreakdownTrendChart extends StatelessWidget {
-  final DateTime month; // any date within the target month
-  const BreakdownTrendChart({super.key, required this.month});
+/// Breakdown Trend — for the selected month (or custom range), how many
+/// breakdown (BM) tasks each machine had, ranked worst-first, as a
+/// columnar bar chart: x-axis is machine name, y-axis (bar height) is
+/// breakdown count. The total downtime for that machine, in "10h35m"
+/// format, is shown as a label on the bar itself — count and duration
+/// tell two different parts of the same story and both matter to admin
+/// at a glance.
+///
+/// Self-contained: manages its own month/custom-range selection (the
+/// top-right icon opens the switch between them) rather than taking a
+/// month from a parent, so this card can be dropped anywhere without the
+/// caller having to also own that state.
+class BreakdownTrendChart extends StatefulWidget {
+  const BreakdownTrendChart({super.key});
+
+  @override
+  State<BreakdownTrendChart> createState() => _BreakdownTrendChartState();
+}
+
+class _BreakdownTrendChartState extends State<BreakdownTrendChart> {
+  DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTimeRange? _customRange;
+
+  bool get _isCustomRange => _customRange != null;
+  bool get _isCurrentMonth {
+    final now = DateTime.now();
+    return !_isCustomRange && _month.year == now.year && _month.month == now.month;
+  }
+
+  DateTime get _rangeStart => _customRange != null ? DateTime(_customRange!.start.year, _customRange!.start.month, _customRange!.start.day) : DateTime(_month.year, _month.month, 1);
+
+  DateTime get _rangeEndExclusive => _customRange != null
+      ? DateTime(_customRange!.end.year, _customRange!.end.month, _customRange!.end.day).add(const Duration(days: 1))
+      : DateTime(_month.year, _month.month + 1, 1);
+
+  String get _rangeLabel => _customRange != null ? '${formatDate(_customRange!.start)} – ${formatDate(_customRange!.end)}' : formatMonthYear(_month);
+
+  void _shiftMonth(int delta) => setState(() => _month = DateTime(_month.year, _month.month + delta));
+
+  Future<void> _pickCustomRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 3),
+      lastDate: now,
+      initialDateRange: _customRange ?? DateTimeRange(start: _rangeStart, end: _rangeEndExclusive.subtract(const Duration(days: 1))),
+    );
+    if (picked != null) setState(() => _customRange = picked);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final monthStart = DateTime(month.year, month.month, 1);
-    final monthEndExclusive = DateTime(month.year, month.month + 1, 1);
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
@@ -34,13 +72,37 @@ class BreakdownTrendChart extends StatelessWidget {
               const Icon(Icons.leaderboard_outlined, size: 20),
               const SizedBox(width: 8),
               const Expanded(child: Text('Breakdown Trend', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.calendar_month_outlined, size: 20),
+                tooltip: 'Change range',
+                onSelected: (value) {
+                  if (value == 'current') {
+                    setState(() {
+                      _customRange = null;
+                      _month = DateTime(DateTime.now().year, DateTime.now().month);
+                    });
+                  } else {
+                    _pickCustomRange();
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(value: 'current', child: Text('Current Month')),
+                  PopupMenuItem(value: 'custom', child: Text('Custom Range…')),
+                ],
+              ),
             ]),
             const SizedBox(height: 4),
-            const Text(
-              'Breakdown (BM) tasks per machine this month, ranked highest first.',
-              style: TextStyle(fontSize: 12, color: AppColors.muted),
+            Text(
+              'Breakdown (BM) tasks per machine, ranked highest first.',
+              style: const TextStyle(fontSize: 12, color: AppColors.muted),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+            Row(children: [
+              if (!_isCustomRange) IconButton(icon: const Icon(Icons.chevron_left), tooltip: 'Previous month', onPressed: () => _shiftMonth(-1)),
+              Expanded(child: Center(child: Text(_rangeLabel, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)))),
+              if (!_isCustomRange) IconButton(icon: const Icon(Icons.chevron_right), tooltip: 'Next month', onPressed: _isCurrentMonth ? null : () => _shiftMonth(1)),
+            ]),
+            const SizedBox(height: 12),
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: FirebaseFirestore.instance.collection('machines').snapshots(),
               builder: (context, machineSnapshot) {
@@ -58,8 +120,8 @@ class BreakdownTrendChart extends StatelessWidget {
                   stream: FirebaseFirestore.instance
                       .collection('work_orders')
                       .where('status', isEqualTo: 'completed')
-                      .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(monthStart))
-                      .where('completedAt', isLessThan: Timestamp.fromDate(monthEndExclusive))
+                      .where('completedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(_rangeStart))
+                      .where('completedAt', isLessThan: Timestamp.fromDate(_rangeEndExclusive))
                       .snapshots(),
                   builder: (context, orderSnapshot) {
                     if (machineSnapshot.hasError || orderSnapshot.hasError) {
@@ -89,7 +151,8 @@ class BreakdownTrendChart extends StatelessWidget {
                               name: machines[e.key]?.displayName ?? e.key,
                               count: e.value,
                               seconds: secondsByMachine[e.key] ?? 0,
-                              tasks: (tasksByMachine[e.key] ?? [])..sort((a, b) => (a.completedAt ?? DateTime(0)).compareTo(b.completedAt ?? DateTime(0))),
+                              // Latest first -- the most recent breakdown is what admin usually wants to check first.
+                              tasks: (tasksByMachine[e.key] ?? [])..sort((a, b) => (b.completedAt ?? DateTime(0)).compareTo(a.completedAt ?? DateTime(0))),
                             ))
                         .toList()
                       ..sort((a, b) => b.count.compareTo(a.count));
@@ -97,7 +160,7 @@ class BreakdownTrendChart extends StatelessWidget {
                     if (rows.isEmpty) {
                       return const Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Text('No breakdown tasks completed this month.', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                        child: Text('No breakdown tasks completed in this range.', style: TextStyle(color: AppColors.muted, fontSize: 12)),
                       );
                     }
 
@@ -365,6 +428,7 @@ class _BreakdownDetailTableState extends State<_BreakdownDetailTable> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
+          showCheckboxColumn: false,
           columnSpacing: 20,
           columns: const [
             DataColumn(label: Text('Sl')),
