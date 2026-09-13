@@ -1002,17 +1002,15 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
     commitAllowingOffline(batch);
   }
 
-  // "Others" tasks alone can have zero, one, or several machines picked
-  // AFTER the task's already running -- unlike every other task type,
-  // which is tied to whatever single machine (plus its group, if any)
-  // was chosen at Start Task and never changes. Reuses the existing
-  // machineId (first pick) + groupMachineIds (the rest) fields purely as
-  // "the set of machines on this task" here -- there's no formal
-  // machine-group relationship between them the way there is for a
-  // grouped machine's own subunits, but every place that already reads
-  // those two fields to render "Machine: X" / "Other units: ..." keeps
-  // working unchanged.
-  Future<void> _editOthersMachines(WorkOrder order) async {
+  // Any running task can have its machine(s) corrected on the fly --
+  // e.g. the wrong unit was picked at Start Task, or more units turned
+  // out to be involved. Reuses the existing machineId (first pick) +
+  // groupMachineIds (the rest) fields purely as "the set of machines on
+  // this task" here -- there's no formal machine-group relationship
+  // between them the way there is for a grouped machine's own subunits,
+  // but every place that already reads those two fields to render
+  // "Machine: X" / "Other units: ..." keeps working unchanged.
+  Future<void> _editMachines(WorkOrder order) async {
     final snap = await FirebaseFirestore.instance.collection('machines').orderBy('equipmentName').get();
     final machines = snap.docs.map((d) => Machine.fromMap(d.id, d.data())).toList();
     final selected = <String>{
@@ -1078,7 +1076,7 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
     );
   }
 
-  Future<void> _editOthersRemarks(WorkOrder order) async {
+  Future<void> _editRemarks(WorkOrder order) async {
     final controller = TextEditingController(text: order.description);
     final result = await showDialog<String>(
       context: context,
@@ -1100,10 +1098,10 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
     if (result == null || result == order.description) return;
     try {
       await FirebaseFirestore.instance.collection('work_orders').doc(widget.taskId).update({'description': result});
-      // The AI title was generated from the OLD remarks -- refresh it so
-      // it doesn't go stale relative to what the task is now described
-      // as. Same best-effort, fire-and-forget pattern as Start Task.
-      if (result.isNotEmpty) {
+      // The AI title only applies to "Others" tasks (see
+      // WorkOrder.displayTitle) -- pointless to spend an AI call
+      // refreshing one that will never be shown for any other type.
+      if (order.type == 'others' && result.isNotEmpty) {
         unawaited(summarizeOthersTaskTitle(result).then((title) {
           if (title == null) return;
           FirebaseFirestore.instance.collection('work_orders').doc(widget.taskId).update({'summaryTitle': title}).catchError((Object error) {
@@ -1113,6 +1111,40 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update remarks: $e')));
+    }
+  }
+
+  // Lets a JO correct their task's own start time -- e.g. they forgot to
+  // tap Start Task right away. Kept in sync with contributorJoinTimes
+  // for whoever originally created the task (see WorkOrder.
+  // contributorInterval): that map takes precedence over startedAt for
+  // computing a contributor's own engaged time, so editing startedAt
+  // alone would silently leave the creator's own hours-worked figure
+  // unchanged.
+  Future<void> _editStartTime(WorkOrder order) async {
+    final current = order.startedAt ?? DateTime.now();
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: current.subtract(const Duration(days: 30)),
+      lastDate: now,
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(current));
+    if (time == null) return;
+
+    final picked = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (picked.isAfter(now)) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Start time cannot be in the future.')));
+      return;
+    }
+    try {
+      final update = <String, dynamic>{'startedAt': Timestamp.fromDate(picked)};
+      if (order.createdBy.isNotEmpty) update['contributorJoinTimes.${order.createdBy}'] = Timestamp.fromDate(picked);
+      await FirebaseFirestore.instance.collection('work_orders').doc(widget.taskId).update(update);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update start time: $e')));
     }
   }
 
@@ -1190,26 +1222,32 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
                     ),
                   ),
                 if (order.type == 'preventive' && order.preventiveTypes.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Preventive type: ${order.preventiveTypes.join(', ')}')),
-                if (order.startedAt != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Started: ${formatDateTime12h(order.startedAt)}')),
+                if (order.startedAt != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(children: [
+                      Expanded(child: Text('Started: ${formatDateTime12h(order.startedAt)}')),
+                      InkWell(
+                        onTap: () => _editStartTime(order),
+                        borderRadius: BorderRadius.circular(6),
+                        child: const Padding(padding: EdgeInsets.all(2), child: Icon(Icons.edit_outlined, size: 16, color: AppColors.muted)),
+                      ),
+                    ]),
+                  ),
                 if (order.description.isNotEmpty) ...[const SizedBox(height: 8), Text('Starting remarks: ${order.description}')],
-                // Only "Others" tasks can have their machine(s)/remarks
-                // changed after starting -- every other type is tied to
-                // whatever was picked at Start Task.
-                if (order.type == 'others') ...[
-                  const SizedBox(height: 10),
-                  Wrap(spacing: 8, runSpacing: 8, children: [
-                    OutlinedButton.icon(
-                      onPressed: () => _editOthersMachines(order),
-                      icon: const Icon(Icons.precision_manufacturing_outlined, size: 16),
-                      label: const Text('Edit Machine(s)'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => _editOthersRemarks(order),
-                      icon: const Icon(Icons.edit_outlined, size: 16),
-                      label: const Text('Edit Remarks'),
-                    ),
-                  ]),
-                ],
+                const SizedBox(height: 10),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _editMachines(order),
+                    icon: const Icon(Icons.precision_manufacturing_outlined, size: 16),
+                    label: const Text('Edit Machine(s)'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _editRemarks(order),
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Edit Remarks'),
+                  ),
+                ]),
                 const SizedBox(height: 18),
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Expanded(

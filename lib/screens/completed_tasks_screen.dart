@@ -432,6 +432,174 @@ class _CompletedTaskDetailSheetState extends State<_CompletedTaskDetailSheet> {
   bool _isDeleting = false;
   bool _isSavingRemarks = false;
   late String _remarks = widget.order.completionRemarks;
+  late String _description = widget.order.description;
+  late DateTime? _startedAt = widget.order.startedAt;
+  late DateTime? _completedAt = widget.order.completedAt;
+  late int? _durationSeconds = widget.order.durationSeconds;
+  late String _machineId = widget.order.machineId;
+  late List<String> _groupMachineIds = List.of(widget.order.groupMachineIds);
+  late Machine? _machine = widget.machine;
+  late List<String> _otherUnitLabels = List.of(widget.otherUnitLabels);
+
+  Future<void> _editDescription() async {
+    final controller = TextEditingController(text: _description);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Edit starting remarks'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 5,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Save')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null || !mounted) return;
+    try {
+      await FirebaseFirestore.instance.collection('work_orders').doc(widget.order.id).update({'description': result});
+      if (mounted) setState(() => _description = result);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+    }
+  }
+
+  // Editing either time together (rather than two separate actions) is
+  // deliberate: changing just one in isolation could leave End before
+  // Start, or a duration silently wrong relative to the other -- doing
+  // both in one dialog means there's exactly one point where the pair is
+  // validated and durationSeconds is recomputed to match.
+  Future<void> _editTimes() async {
+    final now = DateTime.now();
+    final currentStart = _startedAt ?? now;
+    final currentEnd = _completedAt ?? now;
+
+    final startDate = await showDatePicker(context: context, initialDate: currentStart, firstDate: currentStart.subtract(const Duration(days: 365)), lastDate: now);
+    if (startDate == null || !mounted) return;
+    final startTime = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(currentStart));
+    if (startTime == null || !mounted) return;
+    final newStart = DateTime(startDate.year, startDate.month, startDate.day, startTime.hour, startTime.minute);
+
+    final endDate = await showDatePicker(context: context, initialDate: currentEnd, firstDate: newStart, lastDate: now);
+    if (endDate == null || !mounted) return;
+    final endTime = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(currentEnd));
+    if (endTime == null) return;
+    final newEnd = DateTime(endDate.year, endDate.month, endDate.day, endTime.hour, endTime.minute);
+
+    if (!newEnd.isAfter(newStart)) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Completion time must be after the start time.')));
+      return;
+    }
+
+    final newDuration = newEnd.difference(newStart).inSeconds;
+    try {
+      final update = <String, dynamic>{
+        'startedAt': Timestamp.fromDate(newStart),
+        'completedAt': Timestamp.fromDate(newEnd),
+        'durationSeconds': newDuration,
+      };
+      // Kept in sync for the same reason as technician_screen.dart's own
+      // start-time edit: contributorJoinTimes takes precedence over
+      // startedAt when computing the creator's own engaged time (see
+      // WorkOrder.contributorInterval), so leaving it stale here would
+      // silently keep their hours-worked figure wrong.
+      if (widget.order.createdBy.isNotEmpty) update['contributorJoinTimes.${widget.order.createdBy}'] = Timestamp.fromDate(newStart);
+      await FirebaseFirestore.instance.collection('work_orders').doc(widget.order.id).update(update);
+      if (mounted) {
+        setState(() {
+          _startedAt = newStart;
+          _completedAt = newEnd;
+          _durationSeconds = newDuration;
+        });
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+    }
+  }
+
+  Future<void> _editMachines() async {
+    final snap = await FirebaseFirestore.instance.collection('machines').orderBy('equipmentName').get();
+    final machines = snap.docs.map((d) => Machine.fromMap(d.id, d.data())).toList();
+    final selected = <String>{
+      if (_machineId.isNotEmpty) _machineId,
+      ..._groupMachineIds,
+    };
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('Select Machine(s)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 420),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: machines.map((m) {
+                    return CheckboxListTile(
+                      value: selected.contains(m.id),
+                      title: Text(m.displayName),
+                      subtitle: m.equipmentId.isNotEmpty ? Text(m.equipmentId) : null,
+                      onChanged: (v) {
+                        setSheetState(() {
+                          if (v == true) {
+                            selected.add(m.id);
+                          } else {
+                            selected.remove(m.id);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () async {
+                    final ids = selected.toList();
+                    Navigator.pop(sheetContext);
+                    final newMachineId = ids.isEmpty ? '' : ids.first;
+                    final newGroupIds = ids.length > 1 ? ids.sublist(1) : <String>[];
+                    try {
+                      await FirebaseFirestore.instance.collection('work_orders').doc(widget.order.id).update({
+                        'machineId': newMachineId,
+                        'groupMachineIds': newGroupIds,
+                      });
+                      final byId = {for (final m in machines) m.id: m};
+                      final newMachine = newMachineId.isEmpty ? null : byId[newMachineId];
+                      final newOtherLabels = newGroupIds.map((id) => byId[id]?.equipmentId ?? id).toList();
+                      if (mounted) {
+                        setState(() {
+                          _machineId = newMachineId;
+                          _groupMachineIds = newGroupIds;
+                          _machine = newMachine;
+                          _otherUnitLabels = newOtherLabels;
+                        });
+                      }
+                    } catch (e) {
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update machines: $e')));
+                    }
+                  },
+                  child: Text('Save (${selected.length} selected)'),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
 
   Future<void> _editRemarks() async {
     final controller = TextEditingController(text: _remarks);
@@ -500,14 +668,14 @@ class _CompletedTaskDetailSheetState extends State<_CompletedTaskDetailSheet> {
   @override
   Widget build(BuildContext context) {
     final order = widget.order;
-    final machine = widget.machine;
+    final machine = _machine;
     // Main unit + other units, merged into one sorted list under a
     // single "Equipment ID" row — the nickname shown in the title above
     // already identifies the machine/group, so a separate "Group: <name>"
     // row would just repeat it.
     final equipmentIds = {
       if (machine != null && machine.equipmentId.isNotEmpty) machine.equipmentId,
-      ...widget.otherUnitLabels,
+      ..._otherUnitLabels,
     }.toList()
       ..sort();
     return SafeArea(
@@ -523,30 +691,57 @@ class _CompletedTaskDetailSheetState extends State<_CompletedTaskDetailSheet> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
+                    // The AI-generated title (for an 'others' task) is
+                    // derived from the ORIGINAL starting remarks -- if
+                    // those get edited below, this title can go stale,
+                    // but re-summarizing on every edit here felt like
+                    // more surprise than value for a historical record.
                     order.displayTitle(machineLabel: machine?.fullLabel),
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
                 if (order.lateEntry) ...[const SizedBox(width: 6), lateEntryBadge()],
                 const SizedBox(width: 8),
-                Text(_duration(order.durationSeconds), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                Text(_duration(_durationSeconds), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
               ]),
               const SizedBox(height: 10),
               Row(children: [
-                Expanded(child: _detailRow('Started', formatDateTime12h(order.startedAt))),
-                Expanded(child: _detailRow('Completed', formatDateTime12h(order.completedAt))),
+                Expanded(child: _detailRow('Started', formatDateTime12h(_startedAt))),
+                Expanded(child: _detailRow('Completed', formatDateTime12h(_completedAt))),
+                InkWell(
+                  onTap: _editTimes,
+                  borderRadius: BorderRadius.circular(6),
+                  child: const Padding(padding: EdgeInsets.all(2), child: Icon(Icons.edit_outlined, size: 16, color: AppColors.muted)),
+                ),
               ]),
               const SizedBox(height: 2),
               PeopleLine(widget.technicianNames, widget.helperNames),
               const SizedBox(height: 10),
-              if (equipmentIds.isNotEmpty) _detailRow('Equipment ID', equipmentIds.join(', ')),
+              Row(children: [
+                Expanded(
+                  child: equipmentIds.isEmpty
+                      ? const Text('No machine selected.', style: TextStyle(color: AppColors.muted, fontSize: 13, fontStyle: FontStyle.italic))
+                      : _detailRow('Equipment ID', equipmentIds.join(', ')),
+                ),
+                InkWell(
+                  onTap: _editMachines,
+                  borderRadius: BorderRadius.circular(6),
+                  child: const Padding(padding: EdgeInsets.all(2), child: Icon(Icons.edit_outlined, size: 16, color: AppColors.muted)),
+                ),
+              ]),
               if (order.preventiveTypes.isNotEmpty) _detailRow('Preventive type', order.preventiveTypes.join(', ')),
-              if (order.description.trim().isNotEmpty) ...[
-                const SizedBox(height: 8),
+              const SizedBox(height: 8),
+              Row(children: [
                 const Text('Starting remarks', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.muted)),
-                const SizedBox(height: 2),
-                Text(order.description.trim()),
-              ],
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: _editDescription,
+                  borderRadius: BorderRadius.circular(6),
+                  child: const Padding(padding: EdgeInsets.all(2), child: Icon(Icons.edit_outlined, size: 16, color: AppColors.muted)),
+                ),
+              ]),
+              const SizedBox(height: 2),
+              Text(_description.trim().isEmpty ? 'No remarks.' : _description.trim(), style: _description.trim().isEmpty ? const TextStyle(color: AppColors.muted, fontStyle: FontStyle.italic) : null),
               const SizedBox(height: 10),
               Row(children: [
                 const Text('Completion remarks', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.muted)),

@@ -16,6 +16,7 @@ class WorkOrder {
   // task, which never gets one.
   final String? reasonSummary;
   final String status;
+  final String createdBy;
   final List<String> assignedTechnicianIds;
   final List<String> helperIds;
   final List<String> preventiveTypes;
@@ -61,6 +62,7 @@ class WorkOrder {
     this.summaryTitle,
     this.reasonSummary,
     required this.status,
+    this.createdBy = '',
     required this.assignedTechnicianIds,
     required this.helperIds,
     required this.preventiveTypes,
@@ -109,6 +111,7 @@ class WorkOrder {
       summaryTitle: _trimmedOrNull(data['summaryTitle']),
       reasonSummary: _trimmedOrNull(data['reasonSummary']),
       status: (data['status'] ?? 'open').toString(),
+      createdBy: (data['createdBy'] ?? '').toString(),
       assignedTechnicianIds: List<String>.from(data['assignedTechnicianIds'] ?? const []),
       helperIds: List<String>.from(data['helperIds'] ?? const []),
       preventiveTypes: List<String>.from(data['preventiveTypes'] ?? const []),
