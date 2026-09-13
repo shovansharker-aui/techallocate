@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'models/machine.dart';
 import 'models/work_order.dart';
+import 'screens/completed_tasks_screen.dart';
 import 'services/ai_title_service.dart';
 import 'utils/app_colors.dart';
 import 'utils/date_format.dart';
@@ -236,8 +237,13 @@ class _BreakdownBarChart extends StatelessWidget {
       // it otherwise.
       builder: (dialogContext) => AlertDialog(
         title: Text(r.name),
+        // Fixed max height (rather than letting the dialog grow with the
+        // row count) is what makes _BreakdownDetailTable's own vertical
+        // scroll view actually kick in for a machine with many breakdowns
+        // in the month -- without a bound here, AlertDialog just sizes to
+        // content and silently clips whatever doesn't fit on screen.
         content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
+          constraints: BoxConstraints(maxWidth: 520, maxHeight: MediaQuery.of(dialogContext).size.height * 0.6),
           child: _BreakdownDetailTable(tasks: r.tasks),
         ),
         actions: [
@@ -306,42 +312,94 @@ class _BreakdownDetailTableState extends State<_BreakdownDetailTable> {
     }
   }
 
+  // Tapping a row opens the exact same full-detail sheet as the admin's
+  // Completed Tasks list / home dashboard -- resolved on demand rather
+  // than upfront for every row, since only one row is ever actually
+  // opened per tap.
+  Future<void> _openTaskDetail(WorkOrder order) async {
+    final firestore = FirebaseFirestore.instance;
+
+    Machine? machine;
+    if (order.machineId.isNotEmpty) {
+      final snap = await firestore.collection('machines').doc(order.machineId).get();
+      if (snap.exists) machine = Machine.fromMap(snap.id, snap.data()!);
+    }
+
+    var otherUnitLabels = <String>[];
+    if (order.groupMachineIds.isNotEmpty) {
+      final snap = await firestore.collection('machines').where(FieldPath.documentId, whereIn: order.groupMachineIds).get();
+      final byId = {for (final d in snap.docs) d.id: Machine.fromMap(d.id, d.data())};
+      otherUnitLabels = order.groupMachineIds.map((id) => byId[id]?.equipmentId ?? id).toList();
+    }
+
+    final technicianIds = {...order.assignedTechnicianIds, ...order.contributorIds}.toList();
+    var technicianNames = <String>[];
+    if (technicianIds.isNotEmpty) {
+      final snap = await firestore.collection('users').where(FieldPath.documentId, whereIn: technicianIds).get();
+      technicianNames = snap.docs.map((d) => (d.data()['name'] ?? '').toString()).where((n) => n.isNotEmpty).toList();
+    }
+
+    var helperNames = <String>[];
+    if (order.helperIds.isNotEmpty) {
+      final snap = await firestore.collection('helpers').where(FieldPath.documentId, whereIn: order.helperIds).get();
+      helperNames = snap.docs.map((d) => (d.data()['name'] ?? '').toString()).where((n) => n.isNotEmpty).toList();
+    }
+
+    if (!mounted) return;
+    showCompletedTaskDetail(
+      context,
+      order: order,
+      machine: machine,
+      otherUnitLabels: otherUnitLabels,
+      technicianNames: technicianNames,
+      helperNames: helperNames,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Vertical scroll (outer) + horizontal scroll (inner) so a machine
+    // with many breakdowns in the month scrolls to all of them instead
+    // of being silently clipped at whatever fits the dialog's height.
     return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columnSpacing: 20,
-        columns: const [
-          DataColumn(label: Text('Sl')),
-          DataColumn(label: Text('Date')),
-          DataColumn(label: Text('Breakdown Hour')),
-          DataColumn(label: Text('Reason')),
-        ],
-        rows: widget.tasks.asMap().entries.map((entry) {
-          final i = entry.key;
-          final t = entry.value;
-          final seconds = t.durationSeconds ?? 0;
-          final h = seconds ~/ 3600;
-          final m = (seconds % 3600) ~/ 60;
-          final durationLabel = h > 0 ? '${h}h ${m}m' : '${m}m';
-          final reason = _reasons[t.id];
-          return DataRow(cells: [
-            DataCell(Text('${i + 1}')),
-            DataCell(Text(t.completedAt == null ? '—' : formatDate(t.completedAt!))),
-            DataCell(Text(durationLabel)),
-            DataCell(
-              SizedBox(
-                width: 220,
-                child: Text(
-                  reason ?? (_pending.contains(t.id) ? 'Summarizing…' : '—'),
-                  softWrap: true,
-                  style: reason == null ? const TextStyle(color: AppColors.muted, fontStyle: FontStyle.italic) : null,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          columnSpacing: 20,
+          columns: const [
+            DataColumn(label: Text('Sl')),
+            DataColumn(label: Text('Date')),
+            DataColumn(label: Text('Breakdown Hour')),
+            DataColumn(label: Text('Reason')),
+          ],
+          rows: widget.tasks.asMap().entries.map((entry) {
+            final i = entry.key;
+            final t = entry.value;
+            final seconds = t.durationSeconds ?? 0;
+            final h = seconds ~/ 3600;
+            final m = (seconds % 3600) ~/ 60;
+            final durationLabel = h > 0 ? '${h}h ${m}m' : '${m}m';
+            final reason = _reasons[t.id];
+            return DataRow(
+              onSelectChanged: (_) => _openTaskDetail(t),
+              cells: [
+                DataCell(Text('${i + 1}')),
+                DataCell(Text(t.completedAt == null ? '—' : formatDate(t.completedAt!))),
+                DataCell(Text(durationLabel)),
+                DataCell(
+                  SizedBox(
+                    width: 220,
+                    child: Text(
+                      reason ?? (_pending.contains(t.id) ? 'Summarizing…' : '—'),
+                      softWrap: true,
+                      style: reason == null ? const TextStyle(color: AppColors.muted, fontStyle: FontStyle.italic) : null,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ]);
-        }).toList(),
+              ],
+            );
+          }).toList(),
+        ),
       ),
     );
   }
