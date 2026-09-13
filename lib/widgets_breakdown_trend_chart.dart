@@ -2,9 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'models/machine.dart';
 import 'models/work_order.dart';
+import 'services/ai_title_service.dart';
 import 'utils/app_colors.dart';
+import 'utils/date_format.dart';
 
-typedef _MachineBreakdowns = ({String name, int count, int seconds});
+typedef _MachineBreakdowns = ({String name, int count, int seconds, List<WorkOrder> tasks});
 
 /// Breakdown Trend — for the selected month, how many breakdown (BM)
 /// tasks each machine had, ranked worst-first, as a columnar bar chart:
@@ -73,10 +75,12 @@ class BreakdownTrendChart extends StatelessWidget {
 
                     final countByMachine = <String, int>{};
                     final secondsByMachine = <String, int>{};
+                    final tasksByMachine = <String, List<WorkOrder>>{};
                     for (final o in orders) {
                       if (o.machineId.isEmpty) continue;
                       countByMachine[o.machineId] = (countByMachine[o.machineId] ?? 0) + 1;
                       secondsByMachine[o.machineId] = (secondsByMachine[o.machineId] ?? 0) + (o.durationSeconds ?? 0);
+                      (tasksByMachine[o.machineId] ??= []).add(o);
                     }
 
                     final rows = countByMachine.entries
@@ -84,6 +88,7 @@ class BreakdownTrendChart extends StatelessWidget {
                               name: machines[e.key]?.displayName ?? e.key,
                               count: e.value,
                               seconds: secondsByMachine[e.key] ?? 0,
+                              tasks: (tasksByMachine[e.key] ?? [])..sort((a, b) => (a.completedAt ?? DateTime(0)).compareTo(b.completedAt ?? DateTime(0))),
                             ))
                         .toList()
                       ..sort((a, b) => b.count.compareTo(a.count));
@@ -129,7 +134,7 @@ class _BreakdownBarChart extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: rows.map(_bar).toList(),
+              children: rows.map((r) => _bar(context, r)).toList(),
             ),
           ),
         ),
@@ -154,7 +159,7 @@ class _BreakdownBarChart extends StatelessWidget {
     );
   }
 
-  Widget _bar(_MachineBreakdowns r) {
+  Widget _bar(BuildContext context, _MachineBreakdowns r) {
     const minBarHeight = 32.0;
     const maxBarHeight = _plotHeight - 22; // leaves room for the count label above the bar
     final fraction = maxCount == 0 ? 0.0 : r.count / maxCount;
@@ -178,22 +183,30 @@ class _BreakdownBarChart extends StatelessWidget {
               children: [
                 Text('${r.count}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                Container(
-                  width: _barWidth,
-                  height: barHeight,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [AppColors.danger.withValues(alpha: 0.75), AppColors.danger],
+                InkWell(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                  // Tapping (touch) or clicking (mouse/web) a bar opens
+                  // the detail popup -- it stays open until dismissed by
+                  // tapping outside it (showDialog's default barrier
+                  // behavior) rather than closing on its own.
+                  onTap: () => _showBreakdownDetail(context, r),
+                  child: Container(
+                    width: _barWidth,
+                    height: barHeight,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [AppColors.danger.withValues(alpha: 0.75), AppColors.danger],
+                      ),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
                     ),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                  ),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(durationLabel, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(durationLabel, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
                   ),
                 ),
               ],
@@ -211,6 +224,124 @@ class _BreakdownBarChart extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showBreakdownDetail(BuildContext context, _MachineBreakdowns r) {
+    showDialog<void>(
+      context: context,
+      // barrierDismissible defaults to true -- tapping outside the
+      // dialog is exactly how it's meant to close; nothing auto-closes
+      // it otherwise.
+      builder: (dialogContext) => AlertDialog(
+        title: Text(r.name),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: _BreakdownDetailTable(tasks: r.tasks),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+}
+
+/// The popup's body: one row per breakdown task on this machine, oldest
+/// first. The "Reason" column is AI-generated from each task's initial +
+/// completion remarks (see ai_title_service.dart) and cached on the
+/// task's own `reasonSummary` field the first time it's ever shown here
+/// -- every later popup open for the same task reads the cached value
+/// straight from Firestore instead of calling the AI again.
+class _BreakdownDetailTable extends StatefulWidget {
+  final List<WorkOrder> tasks;
+  const _BreakdownDetailTable({required this.tasks});
+
+  @override
+  State<_BreakdownDetailTable> createState() => _BreakdownDetailTableState();
+}
+
+class _BreakdownDetailTableState extends State<_BreakdownDetailTable> {
+  final Map<String, String> _reasons = {};
+  final Set<String> _pending = {};
+
+  @override
+  void initState() {
+    super.initState();
+    for (final t in widget.tasks) {
+      if (t.reasonSummary != null && t.reasonSummary!.isNotEmpty) {
+        _reasons[t.id] = t.reasonSummary!;
+      }
+    }
+    _summarizeMissing();
+  }
+
+  // Same reasoning as the AI-title backfill screen: only skip the UI
+  // update if this popup's been closed, never abort the loop itself --
+  // closing the popup shouldn't stop already-started summaries from
+  // being computed and cached for next time.
+  void _safeSetState(VoidCallback fn) {
+    if (mounted) setState(fn);
+  }
+
+  Future<void> _summarizeMissing() async {
+    for (final t in widget.tasks) {
+      if (_reasons.containsKey(t.id)) continue;
+      _pending.add(t.id);
+      _safeSetState(() {});
+      final reason = await summarizeBreakdownReason(t.description, t.completionRemarks);
+      if (reason != null) {
+        FirebaseFirestore.instance.collection('work_orders').doc(t.id).update({'reasonSummary': reason}).catchError((Object error) {
+          debugPrint('Could not save AI reason: $error');
+        });
+      }
+      _pending.remove(t.id);
+      _safeSetState(() {
+        if (reason != null) _reasons[t.id] = reason;
+      });
+      // Stays well under the free tier's per-minute request cap rather
+      // than firing every call back-to-back.
+      await Future.delayed(const Duration(seconds: 2));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        columnSpacing: 20,
+        columns: const [
+          DataColumn(label: Text('Sl')),
+          DataColumn(label: Text('Date')),
+          DataColumn(label: Text('Breakdown Hour')),
+          DataColumn(label: Text('Reason')),
+        ],
+        rows: widget.tasks.asMap().entries.map((entry) {
+          final i = entry.key;
+          final t = entry.value;
+          final seconds = t.durationSeconds ?? 0;
+          final h = seconds ~/ 3600;
+          final m = (seconds % 3600) ~/ 60;
+          final durationLabel = h > 0 ? '${h}h ${m}m' : '${m}m';
+          final reason = _reasons[t.id];
+          return DataRow(cells: [
+            DataCell(Text('${i + 1}')),
+            DataCell(Text(t.completedAt == null ? '—' : formatDate(t.completedAt!))),
+            DataCell(Text(durationLabel)),
+            DataCell(
+              SizedBox(
+                width: 220,
+                child: Text(
+                  reason ?? (_pending.contains(t.id) ? 'Summarizing…' : '—'),
+                  softWrap: true,
+                  style: reason == null ? const TextStyle(color: AppColors.muted, fontStyle: FontStyle.italic) : null,
+                ),
+              ),
+            ),
+          ]);
+        }).toList(),
       ),
     );
   }

@@ -116,3 +116,75 @@ Future<String?> summarizeOthersTaskTitle(String remarks) async {
     return null;
   }
 }
+
+const _reasonSystemInstruction = 'You write a one-sentence reason for a machine breakdown, for an admin '
+    'reviewing a maintenance log. You are given the technician\'s initial problem note and, if the job is '
+    'finished, their completion remarks describing what was actually done. Rules:\n'
+    '- One short plain sentence (under 15 words), normal sentence case, no ending period, no quotes.\n'
+    '- State the actual problem and, if given, the fix -- e.g. "Air pipe leak, replaced gasket".\n'
+    '- Silently fix obvious typos. Omit plant/building/room names.\n'
+    '- If completion remarks are empty, describe only the initial problem.\n'
+    '- Never explain your answer -- output the sentence only, nothing else.';
+
+/// Turns a completed breakdown task's initial + completion remarks into
+/// a one-line reason, for the Breakdown Trend chart's per-machine detail
+/// popup (see widgets_breakdown_trend_chart.dart), which computes this
+/// once per task and caches it on the task's own `reasonSummary` field
+/// rather than re-calling this on every popup open.
+///
+/// Best-effort only, same contract as [summarizeOthersTaskTitle]: null
+/// on any failure or missing key/input, never throws.
+Future<String?> summarizeBreakdownReason(String initialRemarks, String completionRemarks) async {
+  final initial = initialRemarks.trim();
+  final completion = completionRemarks.trim();
+  if (geminiApiKey.isEmpty || (initial.isEmpty && completion.isEmpty)) return null;
+
+  final prompt = StringBuffer();
+  prompt.writeln('Initial problem: ${initial.isEmpty ? '(none given)' : initial}');
+  prompt.writeln('Completion remarks: ${completion.isEmpty ? '(job not yet finished)' : completion}');
+
+  try {
+    final response = await http
+        .post(
+          Uri.parse('$_endpoint?key=$geminiApiKey'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'systemInstruction': {
+              'parts': [
+                {'text': _reasonSystemInstruction},
+              ],
+            },
+            'contents': [
+              {
+                'role': 'user',
+                'parts': [
+                  {'text': prompt.toString()},
+                ],
+              },
+            ],
+            'generationConfig': {'maxOutputTokens': 40, 'temperature': 0.2},
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode != 200) {
+      debugPrint('AI reason request failed: ${response.statusCode} ${response.body}');
+      return null;
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final candidates = data['candidates'] as List?;
+    if (candidates == null || candidates.isEmpty) return null;
+    final parts = (candidates.first as Map<String, dynamic>)['content']?['parts'] as List?;
+    if (parts == null || parts.isEmpty) return null;
+    var reason = (parts.first as Map<String, dynamic>)['text']?.toString().trim();
+    if (reason == null || reason.isEmpty) return null;
+
+    reason = reason.replaceAll('"', '').replaceAll('\n', ' ').trim();
+    if (reason.length > 120) reason = reason.substring(0, 120).trim();
+    return reason;
+  } catch (e) {
+    debugPrint('AI reason request errored: $e');
+    return null;
+  }
+}

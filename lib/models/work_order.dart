@@ -8,6 +8,13 @@ class WorkOrder {
   // other task type, or an 'others' task the summarizer hasn't (or
   // couldn't) produce one for yet.
   final String? summaryTitle;
+  // AI-generated one-line reason for a 'breakdown' task, combining its
+  // initial (description) and completion remarks -- see
+  // services/ai_title_service.dart. Null/empty until computed (done
+  // lazily, on first view, by the Breakdown Trend chart's detail popup
+  // -- see widgets_breakdown_trend_chart.dart) or for a non-breakdown
+  // task, which never gets one.
+  final String? reasonSummary;
   final String status;
   final List<String> assignedTechnicianIds;
   final List<String> helperIds;
@@ -52,6 +59,7 @@ class WorkOrder {
     required this.machineId,
     required this.description,
     this.summaryTitle,
+    this.reasonSummary,
     required this.status,
     required this.assignedTechnicianIds,
     required this.helperIds,
@@ -99,6 +107,7 @@ class WorkOrder {
       machineId: (data['machineId'] ?? '').toString(),
       description: (data['description'] ?? '').toString(),
       summaryTitle: _trimmedOrNull(data['summaryTitle']),
+      reasonSummary: _trimmedOrNull(data['reasonSummary']),
       status: (data['status'] ?? 'open').toString(),
       assignedTechnicianIds: List<String>.from(data['assignedTechnicianIds'] ?? const []),
       helperIds: List<String>.from(data['helperIds'] ?? const []),
