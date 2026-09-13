@@ -469,40 +469,37 @@ class _CompletedTaskDetailSheetState extends State<_CompletedTaskDetailSheet> {
     }
   }
 
-  // Editing either time together (rather than two separate actions) is
-  // deliberate: changing just one in isolation could leave End before
-  // Start, or a duration silently wrong relative to the other -- doing
-  // both in one dialog means there's exactly one point where the pair is
-  // validated and durationSeconds is recomputed to match.
-  Future<void> _editTimes() async {
+  // Start and end are edited independently (each with its own button, next
+  // to its own row) rather than as a single combined flow -- a combined
+  // flow's end-date picker had to take the (possibly just-changed) new
+  // start as its firstDate while also trying to default to the OLD end
+  // date as initialDate, which crashes whenever the new start lands after
+  // the old end. Editing one side at a time avoids that: each picker only
+  // ever has to be consistent with the OTHER value, which never changes
+  // out from under it mid-flow.
+  Future<void> _editStartTime() async {
     final now = DateTime.now();
-    final currentStart = _startedAt ?? now;
-    final currentEnd = _completedAt ?? now;
+    final current = _startedAt ?? now;
 
-    final startDate = await showDatePicker(context: context, initialDate: currentStart, firstDate: currentStart.subtract(const Duration(days: 365)), lastDate: now);
-    if (startDate == null || !mounted) return;
-    final startTime = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(currentStart));
-    if (startTime == null || !mounted) return;
-    final newStart = DateTime(startDate.year, startDate.month, startDate.day, startTime.hour, startTime.minute);
+    final date = await showDatePicker(context: context, initialDate: current, firstDate: current.subtract(const Duration(days: 365)), lastDate: now);
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(current));
+    if (time == null) return;
+    final newStart = DateTime(date.year, date.month, date.day, time.hour, time.minute);
 
-    final endDate = await showDatePicker(context: context, initialDate: currentEnd, firstDate: newStart, lastDate: now);
-    if (endDate == null || !mounted) return;
-    final endTime = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(currentEnd));
-    if (endTime == null) return;
-    final newEnd = DateTime(endDate.year, endDate.month, endDate.day, endTime.hour, endTime.minute);
-
-    if (!newEnd.isAfter(newStart)) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Completion time must be after the start time.')));
+    if (newStart.isAfter(now)) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Start time cannot be in the future.')));
+      return;
+    }
+    if (_completedAt != null && !newStart.isBefore(_completedAt!)) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Start time must be before the completion time.')));
       return;
     }
 
-    final newDuration = newEnd.difference(newStart).inSeconds;
+    final newDuration = _completedAt != null ? _completedAt!.difference(newStart).inSeconds : _durationSeconds;
     try {
-      final update = <String, dynamic>{
-        'startedAt': Timestamp.fromDate(newStart),
-        'completedAt': Timestamp.fromDate(newEnd),
-        'durationSeconds': newDuration,
-      };
+      final update = <String, dynamic>{'startedAt': Timestamp.fromDate(newStart)};
+      if (newDuration != null) update['durationSeconds'] = newDuration;
       // Kept in sync for the same reason as technician_screen.dart's own
       // start-time edit: contributorJoinTimes takes precedence over
       // startedAt when computing the creator's own engaged time (see
@@ -513,8 +510,42 @@ class _CompletedTaskDetailSheetState extends State<_CompletedTaskDetailSheet> {
       if (mounted) {
         setState(() {
           _startedAt = newStart;
+          if (newDuration != null) _durationSeconds = newDuration;
+        });
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+    }
+  }
+
+  Future<void> _editEndTime() async {
+    final now = DateTime.now();
+    final current = _completedAt ?? now;
+
+    final date = await showDatePicker(context: context, initialDate: current, firstDate: current.subtract(const Duration(days: 365)), lastDate: now);
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(current));
+    if (time == null) return;
+    final newEnd = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+
+    if (newEnd.isAfter(now)) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Completion time cannot be in the future.')));
+      return;
+    }
+    if (_startedAt != null && !newEnd.isAfter(_startedAt!)) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Completion time must be after the start time.')));
+      return;
+    }
+
+    final newDuration = _startedAt != null ? newEnd.difference(_startedAt!).inSeconds : _durationSeconds;
+    try {
+      final update = <String, dynamic>{'completedAt': Timestamp.fromDate(newEnd)};
+      if (newDuration != null) update['durationSeconds'] = newDuration;
+      await FirebaseFirestore.instance.collection('work_orders').doc(widget.order.id).update(update);
+      if (mounted) {
+        setState(() {
           _completedAt = newEnd;
-          _durationSeconds = newDuration;
+          if (newDuration != null) _durationSeconds = newDuration;
         });
       }
     } catch (e) {
@@ -707,9 +738,15 @@ class _CompletedTaskDetailSheetState extends State<_CompletedTaskDetailSheet> {
               const SizedBox(height: 10),
               Row(children: [
                 Expanded(child: _detailRow('Started', formatDateTime12h(_startedAt))),
+                InkWell(
+                  onTap: _editStartTime,
+                  borderRadius: BorderRadius.circular(6),
+                  child: const Padding(padding: EdgeInsets.all(2), child: Icon(Icons.edit_outlined, size: 16, color: AppColors.muted)),
+                ),
+                const SizedBox(width: 10),
                 Expanded(child: _detailRow('Completed', formatDateTime12h(_completedAt))),
                 InkWell(
-                  onTap: _editTimes,
+                  onTap: _editEndTime,
                   borderRadius: BorderRadius.circular(6),
                   child: const Padding(padding: EdgeInsets.all(2), child: Icon(Icons.edit_outlined, size: 16, color: AppColors.muted)),
                 ),
