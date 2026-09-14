@@ -358,7 +358,7 @@ class _CompletedTaskRow extends StatelessWidget {
       child: ListTile(
         leading: CircleAvatar(child: Text(taskTypeCode(order.type))),
         title: Row(children: [
-          Expanded(child: Text(order.displayTitle(machineLabel: machine?.displayName), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          Expanded(child: titleWithAiSummary(order, machine)),
           if (order.lateEntry) ...[const SizedBox(width: 6), lateEntryBadge()],
         ]),
         subtitle: Text([
@@ -852,5 +852,23 @@ Widget lateEntryBadge() {
       'Late Entry',
       style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.warning),
     ),
+  );
+}
+
+/// A completed task's title, with any AI-generated summary/title (see
+/// WorkOrder.displayTitleParts) shown in muted brackets right after the
+/// machine name -- for a breakdown task's reasonSummary or an 'others'
+/// task's summaryTitle, so a list row surfaces what the AI figured out
+/// without hiding the machine it happened on.
+Widget titleWithAiSummary(WorkOrder order, Machine? machine) {
+  final parts = order.displayTitleParts(machineLabel: machine?.displayName);
+  return Text.rich(
+    TextSpan(children: [
+      TextSpan(text: parts.primary),
+      if (parts.secondary != null)
+        TextSpan(text: ' (${parts.secondary})', style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 12, color: AppColors.muted)),
+    ]),
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
   );
 }

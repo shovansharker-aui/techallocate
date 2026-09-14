@@ -60,7 +60,7 @@ class CompletedTasksSection extends StatelessWidget {
                       dense: true,
                       contentPadding: EdgeInsets.zero,
                       leading: CircleAvatar(radius: 16, child: Text(_type(o))),
-                      title: Text(o.displayTitle(machineLabel: machine?.displayName), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      title: titleWithAiSummary(o, machine),
                       subtitle: Text('${names.join(', ')} · ${_duration(o.durationSeconds)}'),
                       trailing: o.lateEntry ? lateEntryBadge() : const Icon(Icons.chevron_right, size: 18),
                       onTap: () => showCompletedTaskDetail(

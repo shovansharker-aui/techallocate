@@ -154,4 +154,22 @@ class WorkOrder {
     }
     return machineLabel ?? (machineId.isEmpty ? 'No machine' : machineId);
   }
+
+  /// Same fallback as [displayTitle], but keeps the machine name and the
+  /// AI-generated text as two separate pieces instead of one replacing
+  /// the other -- for a completed-task list row that wants to show both
+  /// together (e.g. "Compressor A1 (Air pipe leak, replaced gasket)")
+  /// rather than losing the machine name whenever a title/reason exists.
+  /// [secondary] is null whenever there's nothing to add beyond
+  /// [primary] -- e.g. an 'others' task with no machine, where
+  /// [displayTitle] already put the AI title in [primary] itself.
+  ({String primary, String? secondary}) displayTitleParts({String? machineLabel}) {
+    final label = machineLabel ?? (machineId.isEmpty ? 'No machine' : machineId);
+    final ai = type == 'others' ? summaryTitle : (type == 'breakdown' ? reasonSummary : null);
+    if (ai == null || ai.isEmpty) return (primary: label, secondary: null);
+    if (type == 'others' && (machineLabel == null || machineLabel.isEmpty)) {
+      return (primary: ai, secondary: null);
+    }
+    return (primary: label, secondary: ai);
+  }
 }

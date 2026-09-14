@@ -95,6 +95,13 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                         runSpacing: 8,
                         children: orders.map((order) {
                           final machine = machines[order.machineId];
+                          // Breakdown-only, and only once the AI has had a
+                          // chance to summarize the initial remarks (see
+                          // technician_screen.dart's _startTask/_completeTask)
+                          // -- shown in brackets right next to the machine
+                          // name so what's actually wrong is visible without
+                          // opening the task.
+                          final reason = order.type == 'breakdown' ? order.reasonSummary : null;
                           final technicianNames = order.assignedTechnicianIds.map((id) => techs[id]?.name).whereType<String>().where((n) => n.isNotEmpty).toList();
                           final helperNames = order.helperIds.map((id) => helpers[id]?.name).whereType<String>().where((n) => n.isNotEmpty).toList();
                           return SizedBox(
@@ -112,20 +119,26 @@ class _LiveActivityGridState extends State<LiveActivityGrid> {
                                     Row(
                                       children: [
                                         Expanded(
-                                          child: Text(
-                                            // Grouped tasks lead with the
-                                            // group name (e.g. "Air
-                                            // Shower") rather than the
-                                            // specific unit's own name,
-                                            // since the equipment-id line
-                                            // below already lists exactly
-                                            // which units are involved.
-                                            (order.groupMachineIds.isNotEmpty && machine?.isGrouped == true)
-                                                ? machine!.group
-                                                : order.displayTitle(machineLabel: machine?.displayName),
+                                          child: Text.rich(
+                                            TextSpan(children: [
+                                              TextSpan(
+                                                // Grouped tasks lead with the
+                                                // group name (e.g. "Air
+                                                // Shower") rather than the
+                                                // specific unit's own name,
+                                                // since the equipment-id line
+                                                // below already lists exactly
+                                                // which units are involved.
+                                                text: (order.groupMachineIds.isNotEmpty && machine?.isGrouped == true)
+                                                    ? machine!.group
+                                                    : order.displayTitle(machineLabel: machine?.displayName),
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                              ),
+                                              if (reason != null && reason.isNotEmpty)
+                                                TextSpan(text: ' ($reason)', style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 12, color: AppColors.muted)),
+                                            ]),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                                           ),
                                         ),
                                         const SizedBox(width: 6),

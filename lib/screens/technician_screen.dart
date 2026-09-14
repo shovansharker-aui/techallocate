@@ -618,6 +618,18 @@ class _StartTaskPageState extends State<_StartTaskPage> {
           });
         }));
       }
+      if (_type == 'breakdown' && _remarksController.text.trim().isNotEmpty) {
+        // Initial-problem-only reason, shown in brackets next to the
+        // machine name while the task is still running -- regenerated
+        // from BOTH remarks once completion remarks exist (see
+        // _completeTask), same field (reasonSummary) either way.
+        unawaited(summarizeBreakdownReason(_remarksController.text, '').then((reason) {
+          if (reason == null) return;
+          ref.update({'reasonSummary': reason}).catchError((Object error) {
+            debugPrint('Could not save AI reason: $error');
+          });
+        }));
+      }
       if (!mounted) return;
       Navigator.pop(context);
     } catch (e) {
@@ -1109,6 +1121,14 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
           });
         }));
       }
+      if (order.type == 'breakdown' && (result.isNotEmpty || order.completionRemarks.isNotEmpty)) {
+        unawaited(summarizeBreakdownReason(result, order.completionRemarks).then((reason) {
+          if (reason == null) return;
+          FirebaseFirestore.instance.collection('work_orders').doc(widget.taskId).update({'reasonSummary': reason}).catchError((Object error) {
+            debugPrint('Could not save AI reason: $error');
+          });
+        }));
+      }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update remarks: $e')));
     }
@@ -1174,6 +1194,17 @@ class _CurrentTaskViewState extends State<_CurrentTaskView> {
       // startedAt) is saved locally right away regardless of signal, and
       // this screen moves on immediately rather than waiting on it.
       commitAllowingOffline(batch);
+      if (order.type == 'breakdown' && (order.description.trim().isNotEmpty || remarks.trim().isNotEmpty)) {
+        // Regenerates the bracketed reason now that the fix is known too
+        // — the running-task version above only ever saw the initial
+        // problem, since completion remarks didn't exist yet.
+        unawaited(summarizeBreakdownReason(order.description, remarks).then((reason) {
+          if (reason == null) return;
+          firestore.collection('work_orders').doc(widget.taskId).update({'reasonSummary': reason}).catchError((Object error) {
+            debugPrint('Could not save AI reason: $error');
+          });
+        }));
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isCompleting = false);

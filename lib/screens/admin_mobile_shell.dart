@@ -41,6 +41,16 @@ class _AdminMobileShellState extends State<AdminMobileShell> {
 
   @override
   Widget build(BuildContext context) {
+    // extendBody lets each tab's background show through the gaps around
+    // the floating pill nav (it's inset from the screen edges, not a
+    // full-width bar) rather than leaving a hard blank strip beneath it —
+    // but that also means nothing then reserves room FOR the pill, so
+    // without this padding the last bit of any tab's content (e.g. the
+    // Notify broadcast composer's Send button, at the very bottom of
+    // Settings) renders underneath it, unreachable. Matches PillBottomNav's
+    // own height (64) + its SafeArea's own minimum/actual bottom inset,
+    // plus a little breathing room.
+    final navReserve = 64 + (MediaQuery.paddingOf(context).bottom > 12 ? MediaQuery.paddingOf(context).bottom : 12) + 16;
     return Scaffold(
       appBar: AppBar(
         title: Text(_titles[_index]),
@@ -52,7 +62,7 @@ class _AdminMobileShellState extends State<AdminMobileShell> {
           ),
         ],
       ),
-      body: _content,
+      body: Padding(padding: EdgeInsets.only(bottom: navReserve), child: _content),
       extendBody: true,
       bottomNavigationBar: PillBottomNav(currentIndex: _index, onTap: (i) => setState(() => _index = i)),
     );
