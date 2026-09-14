@@ -50,7 +50,8 @@ class _AdminMobileShellState extends State<AdminMobileShell> {
     // Settings) renders underneath it, unreachable. Matches PillBottomNav's
     // own height (64) + its SafeArea's own minimum/actual bottom inset,
     // plus a little breathing room.
-    final navReserve = 64 + (MediaQuery.paddingOf(context).bottom > 12 ? MediaQuery.paddingOf(context).bottom : 12) + 16;
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
+    final navReserve = 64.0 + (safeBottom > 12 ? safeBottom : 12.0) + 16.0;
     return Scaffold(
       appBar: AppBar(
         title: Text(_titles[_index]),
