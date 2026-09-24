@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
+import '../utils/maintenance_login.dart';
 
 enum _PersonnelCategory { maintenanceJo, maintenanceCf, waterPlant }
 
@@ -26,6 +27,7 @@ class _AddPersonnelScreenState extends State<AddPersonnelScreen> {
   bool _isSaving = false;
   bool _hidePin = true;
   bool _waterPlantAccess = false;
+  bool _alsoMaintenance = false;
   String? _errorText;
 
   @override
@@ -113,7 +115,25 @@ class _AddPersonnelScreenState extends State<AddPersonnelScreen> {
           break;
       }
 
-      await firestore.collection(_collectionName).add(data);
+      final addedRef = await firestore.collection(_collectionName).add(data);
+      if (_category == _PersonnelCategory.waterPlant && _alsoMaintenance) {
+        try {
+          await createMaintenanceLogin(
+            personnelDocId: addedRef.id,
+            name: _nameController.text.trim(),
+            employeeId: employeeId,
+            phone: _phoneController.text.trim(),
+            pin: _pinController.text.trim(),
+          );
+        } catch (e) {
+          if (!mounted) return;
+          setState(() {
+            _errorText = 'Added to the water plant list, but the maintenance login failed: $e (use Settings > Manage Personnel to retry).';
+            _isSaving = false;
+          });
+          return;
+        }
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -142,7 +162,7 @@ class _AddPersonnelScreenState extends State<AddPersonnelScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final needsPhoneAndPin = _category == _PersonnelCategory.maintenanceJo;
+    final needsPhoneAndPin = _category == _PersonnelCategory.maintenanceJo || (_category == _PersonnelCategory.waterPlant && _alsoMaintenance);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Add Personnel')),
@@ -195,6 +215,14 @@ class _AddPersonnelScreenState extends State<AddPersonnelScreen> {
                   ),
                   validator: (value) => _required(value, 'Employee ID'),
                 ),
+                if (_category == _PersonnelCategory.waterPlant)
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Also has Maintenance access'),
+                    subtitle: const Text('Gives them their own login to work as a maintenance JO too.'),
+                    value: _alsoMaintenance,
+                    onChanged: (v) => setState(() => _alsoMaintenance = v),
+                  ),
                 if (needsPhoneAndPin) ...[
                   const SizedBox(height: 14),
                   TextFormField(
@@ -229,7 +257,7 @@ class _AddPersonnelScreenState extends State<AddPersonnelScreen> {
                       return null;
                     },
                   ),
-                  SwitchListTile(
+                  if (_category == _PersonnelCategory.maintenanceJo) SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Also has Water Plant access'),
                     subtitle: const Text('For a JO who is also on the water plant duty list — adds the Water Plant overview and duty allocation to their dashboard.'),
@@ -242,7 +270,7 @@ class _AddPersonnelScreenState extends State<AddPersonnelScreen> {
                   switch (_category) {
                     _PersonnelCategory.maintenanceJo => 'Logs in with Employee ID + PIN, on Android or web.',
                     _PersonnelCategory.maintenanceCf => 'CFs do not log in — they\'re attached to a JO\'s active task.',
-                    _PersonnelCategory.waterPlant => 'Water Plant Personnel do not log in individually — their availability is set through the Water Plant login.',
+                    _PersonnelCategory.waterPlant => _alsoMaintenance ? 'Logs in with Employee ID + PIN as a maintenance JO, with Water Plant access.' : 'Water Plant Personnel do not log in individually — their availability is set through the Water Plant login.',
                   },
                   style: const TextStyle(color: AppColors.muted),
                 ),

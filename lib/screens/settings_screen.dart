@@ -3,6 +3,7 @@ import 'add_personnel_screen.dart';
 import 'backfill_ai_titles_screen.dart';
 import 'machines_screen.dart';
 import 'manage_cfs_screen.dart';
+import 'manage_personnel_screen.dart';
 import '../services/theme_service.dart';
 import '../widgets_task_type_chart.dart';
 import '../widgets_notify_setting.dart';
@@ -43,6 +44,14 @@ class _SettingsBodyState extends State<SettingsBody> {
             subtitle: const Text('Add a Maintenance JO, Maintenance CF, or Water Plant Personnel.'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddPersonnelScreen())),
+          )),
+          const SizedBox(height: 10),
+          Card(child: ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.manage_accounts_outlined)),
+            title: const Text('Manage Personnel'),
+            subtitle: const Text('Change who has Maintenance or Water Plant access.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManagePersonnelScreen())),
           )),
           const SizedBox(height: 10),
           Card(child: ListTile(
