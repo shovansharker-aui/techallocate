@@ -19,6 +19,10 @@ class AppUser {
   // which are the same person as far as this app can tell. See
   // NotifyService.
   final String lastNotifySeenId;
+  // A maintenance JO who is ALSO a water plant duty person (they're on the
+  // water_plant_personnel list too) -- gets the Water Plant overview and
+  // duty allocation editing on top of the normal technician dashboard.
+  final bool waterPlantAccess;
 
   AppUser({
     required this.uid,
@@ -33,6 +37,7 @@ class AppUser {
     this.dutyStatusDate = '',
     this.currentTaskId,
     this.lastNotifySeenId = '',
+    this.waterPlantAccess = false,
   });
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> data) {
@@ -49,6 +54,7 @@ class AppUser {
       dutyStatusDate: (data['dutyStatusDate'] ?? '').toString(),
       currentTaskId: data['currentTaskId'],
       lastNotifySeenId: (data['lastNotifySeenId'] ?? '').toString(),
+      waterPlantAccess: data['waterPlantAccess'] == true,
     );
   }
 }

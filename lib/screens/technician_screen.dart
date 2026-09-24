@@ -17,6 +17,7 @@ import '../services/ai_title_service.dart';
 import '../services/status_reminder_notification.dart';
 import '../utils/offline_commit.dart';
 import 'late_entry_screen.dart';
+import 'water_plant_overview_screen.dart';
 import '../utils/app_colors.dart';
 
 class TechnicianScreen extends StatefulWidget {
@@ -175,6 +176,7 @@ class _TechnicianScreenState extends State<TechnicianScreen> with WidgetsBinding
               appBar: AppBar(
                 title: const _DigitalClock(),
                 actions: [
+                  if (user.waterPlantAccess) const _WaterPlantButton(),
                   IconButton(icon: const Icon(Icons.toggle_on_outlined), tooltip: 'Set Status', onPressed: () => _setDutyStatus(context)),
                   IconButton(icon: const Icon(Icons.logout), tooltip: 'Log out', onPressed: widget.onLogout),
                   const Padding(
@@ -240,6 +242,23 @@ class _DigitalClockState extends State<_DigitalClock> {
 
 // Today's completed-task count and total engaged time for this JO — a
 // small positive nudge on their own dashboard, not shown to anyone else.
+/// Opens the Water Plant overview (with duty allocation editing) for a JO
+/// who is also on the water plant duty list -- see AppUser.waterPlantAccess.
+class _WaterPlantButton extends StatelessWidget {
+  const _WaterPlantButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.water_drop_outlined),
+      tooltip: 'Water Plant',
+      onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => const WaterPlantOverviewScreen(showDutyAllocationButton: true, showSwitchingToggle: false),
+      )),
+    );
+  }
+}
+
 class _TodayStatsCard extends StatelessWidget {
   final String uid;
   const _TodayStatsCard({required this.uid});
@@ -437,6 +456,7 @@ class _RunningTasksTabs extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Running Tasks'),
           actions: [
+            if (user.waterPlantAccess) const _WaterPlantButton(),
             PopupMenuButton<String>(
               tooltip: 'More',
               onSelected: (value) {

@@ -25,6 +25,7 @@ class _AddPersonnelScreenState extends State<AddPersonnelScreen> {
   _PersonnelCategory _category = _PersonnelCategory.maintenanceJo;
   bool _isSaving = false;
   bool _hidePin = true;
+  bool _waterPlantAccess = false;
   String? _errorText;
 
   @override
@@ -82,6 +83,7 @@ class _AddPersonnelScreenState extends State<AddPersonnelScreen> {
             'phone': _phoneController.text.trim(),
             'pin': _pinController.text.trim(),
             'role': 'technician',
+            'waterPlantAccess': _waterPlantAccess,
             'trade': '',
             'shift': '',
             'status': 'available',
@@ -226,6 +228,13 @@ class _AddPersonnelScreenState extends State<AddPersonnelScreen> {
                       if (value.trim().length < 4) return 'PIN must be at least 4 digits.';
                       return null;
                     },
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Also has Water Plant access'),
+                    subtitle: const Text('For a JO who is also on the water plant duty list — adds the Water Plant overview and duty allocation to their dashboard.'),
+                    value: _waterPlantAccess,
+                    onChanged: (v) => setState(() => _waterPlantAccess = v),
                   ),
                 ],
                 const SizedBox(height: 12),
