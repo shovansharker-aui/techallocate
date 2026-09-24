@@ -26,6 +26,11 @@ enum DutyPresence { off, free, busy }
 /// isEffectivelyAvailable this replaces.
 DutyPresence dutyPresence(AppUser user, {DateTime? now}) {
   final n = now ?? DateTime.now();
+  // Water plant people who also do maintenance never set a daily
+  // maintenance status, so they'd always read as off-duty here. They only
+  // belong on the roster while actually engaged on a task (shown busy) --
+  // never listed as free alongside the regular maintenance JOs.
+  if (user.waterPlantAccess) return user.status == 'assigned' ? DutyPresence.busy : DutyPresence.off;
   if (user.dutyStatus == 'on_leave') return DutyPresence.off;
 
   final today = todayKey(n);

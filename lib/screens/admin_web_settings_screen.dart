@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'manage_personnel_screen.dart';
 import 'backfill_ai_titles_screen.dart';
 import 'machines_screen.dart';
-import 'manage_cfs_screen.dart';
 import '../services/theme_service.dart';
 import '../widgets_task_type_chart.dart';
 import '../widgets_notify_setting.dart';
@@ -62,7 +61,7 @@ class AdminSettingsBody extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   subtitle: const Text(
-                    'Add personnel, and change who has Maintenance or Water Plant access.',
+                    'Add and manage JOs, CFs and Water Plant personnel.',
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _open(context, const ManagePersonnelScreen()),
@@ -84,24 +83,6 @@ class AdminSettingsBody extends StatelessWidget {
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _open(context, const MachinesScreen()),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.handyman_outlined),
-                  ),
-                  title: const Text(
-                    'Manage CFs',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: const Text(
-                    "See every CF's live status, and force one back to available if it's stuck.",
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _open(context, const ManageCfsScreen()),
                 ),
               ),
               const SizedBox(height: 12),

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'backfill_ai_titles_screen.dart';
 import 'machines_screen.dart';
-import 'manage_cfs_screen.dart';
 import 'manage_personnel_screen.dart';
 import '../services/theme_service.dart';
 import '../widgets_task_type_chart.dart';
@@ -40,7 +39,7 @@ class _SettingsBodyState extends State<SettingsBody> {
           Card(child: ListTile(
             leading: const CircleAvatar(child: Icon(Icons.manage_accounts_outlined)),
             title: const Text('Manage Personnel'),
-            subtitle: const Text('Add personnel, and change who has Maintenance or Water Plant access.'),
+            subtitle: const Text('Add and manage JOs, CFs and Water Plant personnel.'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManagePersonnelScreen())),
           )),
@@ -51,14 +50,6 @@ class _SettingsBodyState extends State<SettingsBody> {
             subtitle: const Text('Add, edit or delete machines and equipment information.'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MachinesScreen())),
-          )),
-          const SizedBox(height: 10),
-          Card(child: ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.handyman_outlined)),
-            title: const Text('Manage CFs'),
-            subtitle: const Text("See every CF's live status, and force one back to available if it's stuck."),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManageCfsScreen())),
           )),
           const SizedBox(height: 10),
           Card(child: ListTile(

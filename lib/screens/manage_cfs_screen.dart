@@ -18,14 +18,12 @@ import '../utils/task_type.dart';
 /// clears their own record so they're selectable again; if that work
 /// order really is still running, its own detail view still lists them
 /// as one of its CF(s) regardless.
-class ManageCfsScreen extends StatelessWidget {
-  const ManageCfsScreen({super.key});
+class ManageCfsBody extends StatelessWidget {
+  const ManageCfsBody({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Manage CFs')),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance.collection('helpers').orderBy('name').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -44,7 +42,6 @@ class ManageCfsScreen extends StatelessWidget {
             itemBuilder: (context, i) => _HelperCard(helper: helpers[i]),
           );
         },
-      ),
     );
   }
 }

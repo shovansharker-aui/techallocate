@@ -4,8 +4,11 @@ import '../models/app_user.dart';
 import '../utils/app_colors.dart';
 import '../utils/maintenance_login.dart';
 import 'add_personnel_screen.dart';
+import 'manage_cfs_screen.dart';
 
-/// Where admin changes who has which access after the fact:
+/// One place for every kind of personnel: Maintenance JOs, CFs (live status,
+/// force-available) and Water Plant personnel, plus adding new ones (+).
+/// Access changes:
 /// - a Water Plant person can be given (or lose) Maintenance access -- their
 ///   own login to work as a JO too;
 /// - a Maintenance JO can be given (or lose) Water Plant access -- the
@@ -18,28 +21,31 @@ class ManagePersonnelScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Personnel'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add_alt_1_outlined),
-            tooltip: 'Add Personnel',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddPersonnelScreen())),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: const [
-          Text('Water Plant Personnel', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-          SizedBox(height: 8),
-          _WaterPlantSection(),
-          SizedBox(height: 24),
-          Text('Maintenance JOs', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-          SizedBox(height: 8),
-          _JoSection(),
-        ],
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Manage Personnel'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.person_add_alt_1_outlined),
+              tooltip: 'Add Personnel',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddPersonnelScreen())),
+            ),
+          ],
+          bottom: const TabBar(tabs: [
+            Tab(text: 'Maintenance JOs'),
+            Tab(text: 'CFs'),
+            Tab(text: 'Water Plant'),
+          ]),
+        ),
+        body: TabBarView(
+          children: [
+            ListView(padding: const EdgeInsets.all(16), children: const [_JoSection()]),
+            const ManageCfsBody(),
+            ListView(padding: const EdgeInsets.all(16), children: const [_WaterPlantSection()]),
+          ],
+        ),
       ),
     );
   }
