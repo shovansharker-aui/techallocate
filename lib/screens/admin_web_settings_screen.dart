@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'add_personnel_screen.dart';
+import 'manage_personnel_screen.dart';
 import 'backfill_ai_titles_screen.dart';
 import 'machines_screen.dart';
 import 'manage_cfs_screen.dart';
@@ -55,17 +55,17 @@ class AdminSettingsBody extends StatelessWidget {
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   leading: const CircleAvatar(
-                    child: Icon(Icons.person_add_alt_1_outlined),
+                    child: Icon(Icons.manage_accounts_outlined),
                   ),
                   title: const Text(
-                    'Add Personnel',
+                    'Manage Personnel',
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   subtitle: const Text(
-                    'Add a Maintenance JO, Maintenance CF, or Water Plant Personnel.',
+                    'Add personnel, and change who has Maintenance or Water Plant access.',
                   ),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _open(context, const AddPersonnelScreen()),
+                  onTap: () => _open(context, const ManagePersonnelScreen()),
                 ),
               ),
               const SizedBox(height: 12),
