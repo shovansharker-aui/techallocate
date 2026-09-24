@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'add_personnel_screen.dart';
 import 'backfill_ai_titles_screen.dart';
 import 'machines_screen.dart';
 import 'manage_cfs_screen.dart';
@@ -39,17 +38,9 @@ class _SettingsBodyState extends State<SettingsBody> {
           const Text('Administration', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           Card(child: ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.person_add_alt_1_outlined)),
-            title: const Text('Add Personnel'),
-            subtitle: const Text('Add a Maintenance JO, Maintenance CF, or Water Plant Personnel.'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddPersonnelScreen())),
-          )),
-          const SizedBox(height: 10),
-          Card(child: ListTile(
             leading: const CircleAvatar(child: Icon(Icons.manage_accounts_outlined)),
             title: const Text('Manage Personnel'),
-            subtitle: const Text('Change who has Maintenance or Water Plant access.'),
+            subtitle: const Text('Add personnel, and change who has Maintenance or Water Plant access.'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManagePersonnelScreen())),
           )),

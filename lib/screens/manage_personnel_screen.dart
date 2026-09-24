@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/app_user.dart';
 import '../utils/app_colors.dart';
 import '../utils/maintenance_login.dart';
+import 'add_personnel_screen.dart';
 
 /// Where admin changes who has which access after the fact:
 /// - a Water Plant person can be given (or lose) Maintenance access -- their
@@ -18,7 +19,16 @@ class ManagePersonnelScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Manage Personnel')),
+      appBar: AppBar(
+        title: const Text('Manage Personnel'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_add_alt_1_outlined),
+            tooltip: 'Add Personnel',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddPersonnelScreen())),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: const [
