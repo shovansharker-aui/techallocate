@@ -60,6 +60,9 @@ class _TechnicianScreenState extends State<TechnicianScreen> with WidgetsBinding
 
   void _maybeShowMandatoryStatusDialog() {
     if (_dialogShowing) return;
+    // Water plant people (who also do maintenance) set their duty through the
+    // Water Plant list, not this daily maintenance check-in.
+    if (widget.user.waterPlantAccess) return;
     final needsPrompt = widget.user.dutyStatusDate != todayKey();
     if (!needsPrompt) return;
     _dialogShowing = true;
@@ -176,8 +179,7 @@ class _TechnicianScreenState extends State<TechnicianScreen> with WidgetsBinding
               appBar: AppBar(
                 title: const _DigitalClock(),
                 actions: [
-                  if (user.waterPlantAccess) const _WaterPlantButton(),
-                  IconButton(icon: const Icon(Icons.toggle_on_outlined), tooltip: 'Set Status', onPressed: () => _setDutyStatus(context)),
+                  if (!user.waterPlantAccess) IconButton(icon: const Icon(Icons.toggle_on_outlined), tooltip: 'Set Status', onPressed: () => _setDutyStatus(context)),
                   IconButton(icon: const Icon(Icons.logout), tooltip: 'Log out', onPressed: widget.onLogout),
                   const Padding(
                     padding: EdgeInsets.only(right: 16, left: 4),
@@ -242,19 +244,23 @@ class _DigitalClockState extends State<_DigitalClock> {
 
 // Today's completed-task count and total engaged time for this JO — a
 // small positive nudge on their own dashboard, not shown to anyone else.
-/// Opens the Water Plant overview (with duty allocation editing) for a JO
-/// who is also on the water plant duty list -- see AppUser.waterPlantAccess.
-class _WaterPlantButton extends StatelessWidget {
-  const _WaterPlantButton();
+/// Entry to the Water Plant overview (with duty allocation editing) for a
+/// person who also has Water Plant access -- see AppUser.waterPlantAccess.
+class _WaterPlantCard extends StatelessWidget {
+  const _WaterPlantCard();
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.water_drop_outlined),
-      tooltip: 'Water Plant',
-      onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => const WaterPlantOverviewScreen(showDutyAllocationButton: true, showSwitchingToggle: false),
-      )),
+    return Card(
+      child: ListTile(
+        leading: const CircleAvatar(child: Icon(Icons.water_drop_outlined)),
+        title: const Text('Water Plant', style: TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: const Text('Duty overview and allocation.'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => const WaterPlantOverviewScreen(showDutyAllocationButton: true, showSwitchingToggle: false),
+        )),
+      ),
     );
   }
 }
@@ -384,9 +390,12 @@ class _TechnicianHome extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       children: [
         Text('Hello, ${user.name}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text('Status: ${_dutyLabel(user.dutyStatus)}', style: TextStyle(color: onLeave ? AppColors.danger : AppColors.success, fontWeight: FontWeight.w600)),
+        if (!user.waterPlantAccess) ...[
+          const SizedBox(height: 8),
+          Text('Status: ${_dutyLabel(user.dutyStatus)}', style: TextStyle(color: onLeave ? AppColors.danger : AppColors.success, fontWeight: FontWeight.w600)),
+        ],
         const SizedBox(height: 18),
+        if (user.waterPlantAccess) ...[const _WaterPlantCard(), const SizedBox(height: 12)],
         _TodayStatsCard(uid: uid),
         const SizedBox(height: 18),
         Card(
@@ -456,7 +465,6 @@ class _RunningTasksTabs extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Running Tasks'),
           actions: [
-            if (user.waterPlantAccess) const _WaterPlantButton(),
             PopupMenuButton<String>(
               tooltip: 'More',
               onSelected: (value) {
@@ -472,11 +480,11 @@ class _RunningTasksTabs extends StatelessWidget {
                     break;
                 }
               },
-              itemBuilder: (context) => const [
-                PopupMenuItem(value: 'late_entry', child: Text('Add Past Task')),
-                PopupMenuItem(value: 'status', child: Text('Set Status')),
-                PopupMenuDivider(),
-                PopupMenuItem(value: 'logout', child: Text('Log out')),
+              itemBuilder: (context) => [
+                const PopupMenuItem(value: 'late_entry', child: Text('Add Past Task')),
+                if (!user.waterPlantAccess) const PopupMenuItem(value: 'status', child: Text('Set Status')),
+                const PopupMenuDivider(),
+                const PopupMenuItem(value: 'logout', child: Text('Log out')),
               ],
             ),
             IconButton(
@@ -498,12 +506,17 @@ class _RunningTasksTabs extends StatelessWidget {
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            for (final order in orders)
-              _CurrentTaskView(uid: uid, taskId: order.id, totalRunningCount: orders.length),
-          ],
-        ),
+        body: Column(children: [
+          if (user.waterPlantAccess) const Padding(padding: EdgeInsets.fromLTRB(12, 8, 12, 0), child: _WaterPlantCard()),
+          Expanded(
+            child: TabBarView(
+              children: [
+                for (final order in orders)
+                  _CurrentTaskView(uid: uid, taskId: order.id, totalRunningCount: orders.length),
+              ],
+            ),
+          ),
+        ]),
       ),
     );
   }
