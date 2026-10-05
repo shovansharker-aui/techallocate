@@ -32,11 +32,32 @@ class TechnicianScreen extends StatefulWidget {
 
 class _TechnicianScreenState extends State<TechnicianScreen> with WidgetsBindingObserver {
   bool _dialogShowing = false;
+  // JOs often forget to close a finished task, so while any task is
+  // running the PWA nudges them with a notification every 30 minutes --
+  // but only while the app isn't in front of them (no point nagging
+  // someone who's looking at it). Browsers throttle/kill timers for
+  // backgrounded PWAs, so this is best-effort, not guaranteed.
+  static const _reminderInterval = Duration(minutes: 30);
+  Timer? _reminderTimer;
+  bool _inForeground = true;
+  List<WorkOrder> _runningOrders = const [];
+
+  void _maybeRemindRunningTasks() {
+    if (_inForeground || _runningOrders.isEmpty) return;
+    final starts = _runningOrders.map((o) => o.startedAt).whereType<DateTime>();
+    var longest = 'just started';
+    if (starts.isNotEmpty) {
+      final d = DateTime.now().difference(starts.reduce((a, b) => a.isBefore(b) ? a : b));
+      longest = d.inHours > 0 ? '${d.inHours}h ${d.inMinutes.remainder(60)}m' : '${d.inMinutes}m';
+    }
+    showRunningTasksReminder(_runningOrders.length, longest);
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _reminderTimer = Timer.periodic(_reminderInterval, (_) => _maybeRemindRunningTasks());
     // Checked on every app launch, not just from 8:00 AM on — a JO must
     // set today's status before they can do anything else, full stop.
     // Also re-checked on resume (below) so a device left open overnight
@@ -47,6 +68,7 @@ class _TechnicianScreenState extends State<TechnicianScreen> with WidgetsBinding
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _inForeground = state == AppLifecycleState.resumed;
     if (state == AppLifecycleState.resumed) {
       _maybeShowMandatoryStatusDialog();
     }
@@ -54,6 +76,7 @@ class _TechnicianScreenState extends State<TechnicianScreen> with WidgetsBinding
 
   @override
   void dispose() {
+    _reminderTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -173,6 +196,7 @@ class _TechnicianScreenState extends State<TechnicianScreen> with WidgetsBinding
               final bt = b.startedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
               return at.compareTo(bt);
             });
+          _runningOrders = orders;
 
           if (orders.isEmpty) {
             return Scaffold(
@@ -597,6 +621,9 @@ class _StartTaskPageState extends State<_StartTaskPage> {
     if (_type == 'others' && _remarksController.text.trim().isEmpty) return setState(() => _errorText = 'Please describe what this task is.');
 
     setState(() => _isSaving = true);
+    // Start Task is a user tap, so this is the right moment to ask for the
+    // notification permission the running-task reminders need.
+    unawaited(requestTaskReminderPermission());
     final firestore = FirebaseFirestore.instance;
     final ref = firestore.collection('work_orders').doc();
     final batch = firestore.batch();
