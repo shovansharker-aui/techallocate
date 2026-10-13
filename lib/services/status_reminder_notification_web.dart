@@ -14,15 +14,33 @@ Future<bool> _ensurePermission() async {
   return permission == 'granted';
 }
 
+// Flutter's own service worker unregisters itself, so there is usually NO
+// active registration and `serviceWorker.ready` would never resolve. This
+// registers a tiny dedicated worker (web/notify/sw.js) on its own scope
+// purely so notifications can be shown -- and tapped to focus the app.
+Future<html.ServiceWorkerRegistration?> _notificationRegistration() async {
+  final container = html.window.navigator.serviceWorker;
+  if (container == null) return null;
+  try {
+    final registration = await container.register('/notify/sw.js', {'scope': '/notify/'});
+    for (var i = 0; i < 25 && registration.active == null; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    return registration.active == null ? null : registration;
+  } catch (_) {
+    return null;
+  }
+}
+
 Future<void> _show(String title, String body, String tag) async {
   if (!await _ensurePermission()) return;
-  try {
-    final registration = await html.window.navigator.serviceWorker?.ready;
-    if (registration != null) {
+  final registration = await _notificationRegistration();
+  if (registration != null) {
+    try {
       await registration.showNotification(title, {'body': body, 'tag': tag, 'renotify': true});
       return;
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
   try {
     html.Notification(title, body: body, tag: tag);
   } catch (_) {}
